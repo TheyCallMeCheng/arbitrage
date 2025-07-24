@@ -39,7 +39,7 @@ const client_1 = require("./client");
 // Load environment variables
 dotenv.config();
 class BybitDataFeed {
-    constructor(symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]) {
+    constructor(symbols = ["BTCUSDT", "ETHUSDT", "FARTCOINUSDT"]) {
         this.symbols = symbols;
         const config = {
             apiKey: process.env.BYBIT_API_KEY || "",
