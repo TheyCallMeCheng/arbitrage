@@ -1,30 +1,44 @@
-import { BybitDataFeed } from "./datafeed/bybit";
+import { BybitDataFeed } from "./datafeed/bybit"
 
 async function main() {
-    console.log("🚀 Arbitrage Data Feed System");
-    console.log("=".repeat(40));
+    console.log("🚀 Arbitrage Data Feed System")
+    console.log("=".repeat(40))
 
-    // Example: Run Bybit fetcher with multiple symbols
-    const bybitDataFeed = new BybitDataFeed(["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
+    // Use all symbols from database
+    const bybitDataFeed = new BybitDataFeed()
 
     try {
-        const result = await bybitDataFeed.getMultipleFundingRates();
+        const result = await bybitDataFeed.getMultipleFundingRates()
 
-        console.log(`\n📊 Bybit Funding Rates (${result.data.length} symbols):`);
-        result.data.forEach((item) => {
+        console.log(`\n📊 Bybit Funding Rates (${result.data.length} symbols):`)
+
+        // Show first 10 symbols for brevity
+        const displayCount = Math.min(10, result.data.length)
+        result.data.slice(0, displayCount).forEach((item) => {
             if (item.success) {
-                console.log(`   ${item.symbol}: ${(item.rate * 100).toFixed(4)}%`);
+                console.log(`   ${item.symbol}: ${(item.rate * 100).toFixed(4)}%`)
             } else {
-                console.log(`   ${item.symbol}: Failed - ${item.error}`);
+                console.log(`   ${item.symbol}: Failed - ${item.error}`)
             }
-        });
+        })
+
+        if (result.data.length > 10) {
+            console.log(`   ... and ${result.data.length - 10} more symbols`)
+        }
+
+        console.log(
+            `\n✅ Successfully processed ${result.data.filter((d) => d.success).length}/${result.data.length} symbols`
+        )
 
         if (result.errors.length > 0) {
-            console.log(`\n⚠️  Errors encountered:`);
-            result.errors.forEach((error) => console.log(`   ${error}`));
+            console.log(`\n⚠️  ${result.errors.length} errors encountered:`)
+            result.errors.slice(0, 5).forEach((error) => console.log(`   ${error}`))
+            if (result.errors.length > 5) {
+                console.log(`   ... and ${result.errors.length - 5} more errors`)
+            }
         }
     } catch (error) {
-        console.error("❌ Error fetching Bybit data:", error);
+        console.error("❌ Error fetching Bybit data:", error)
     }
 
     // TODO: Add other exchange fetchers here
@@ -33,5 +47,5 @@ async function main() {
 }
 
 if (require.main === module) {
-    main();
+    main()
 }

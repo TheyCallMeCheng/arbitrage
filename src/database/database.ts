@@ -221,4 +221,58 @@ export class DatabaseService {
     getDatabase(): Database.Database {
         return this.db
     }
+
+    // Get all symbols from the database
+    getAllSymbols(): string[] {
+        const stmt = this.db.prepare(`
+            SELECT symbol FROM bybit_perpetuals ORDER BY symbol
+        `)
+        const rows = stmt.all() as { symbol: string }[]
+        return rows.map((row) => row.symbol)
+    }
+
+    // Get all active symbols (status = 'Trading')
+    getActiveSymbols(): string[] {
+        const stmt = this.db.prepare(`
+            SELECT symbol FROM bybit_perpetuals WHERE status = 'Trading' ORDER BY symbol
+        `)
+        const rows = stmt.all() as { symbol: string }[]
+        return rows.map((row) => row.symbol)
+    }
+
+    // Query with all symbols together
+    queryWithAllSymbols(): { symbol: string; data: BybitPerpetualContract }[] {
+        const contracts = this.getAllPerpetuals()
+        return contracts.map((contract) => ({
+            symbol: contract.symbol,
+            data: contract,
+        }))
+    }
+
+    // Query with active symbols together
+    queryWithActiveSymbols(): { symbol: string; data: BybitPerpetualContract }[] {
+        const contracts = this.getActivePerpetuals()
+        return contracts.map((contract) => ({
+            symbol: contract.symbol,
+            data: contract,
+        }))
+    }
+
+    // Get symbols by base coin
+    getSymbolsByBaseCoin(baseCoin: string): string[] {
+        const stmt = this.db.prepare(`
+            SELECT symbol FROM bybit_perpetuals WHERE base_coin = ? ORDER BY symbol
+        `)
+        const rows = stmt.all(baseCoin) as { symbol: string }[]
+        return rows.map((row) => row.symbol)
+    }
+
+    // Query with symbols filtered by base coin
+    queryWithSymbolsByBaseCoin(baseCoin: string): { symbol: string; data: BybitPerpetualContract }[] {
+        const contracts = this.getPerpetualsByBaseCoin(baseCoin)
+        return contracts.map((contract) => ({
+            symbol: contract.symbol,
+            data: contract,
+        }))
+    }
 }
