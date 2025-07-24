@@ -1,7 +1,13 @@
 import Database from "better-sqlite3"
 import { join } from "path"
 import { readFileSync } from "fs"
-import type { BybitPerpetualContract, DatabaseMetadata, BybitFundingRate } from "./types"
+import type {
+    BybitPerpetualContract,
+    DatabaseMetadata,
+    BybitFundingRate,
+    CoinexPerpetualContract,
+    CoinexFundingRateRecord,
+} from "./types"
 
 export class DatabaseService {
     private db: Database.Database
@@ -360,5 +366,281 @@ export class DatabaseService {
             uniqueSymbols: uniqueResult.count,
             lastUpdate: lastUpdate?.value || null,
         }
+    }
+
+    // CoinEx Methods
+
+    // Insert or update a CoinEx perpetual contract
+    upsertCoinexPerpetual(contract: CoinexPerpetualContract): void {
+        const stmt = this.db.prepare(`
+            INSERT OR REPLACE INTO coinex_perpetuals (
+                market, base_ccy, quote_ccy, contract_type, status,
+                base_ccy_precision, quote_ccy_precision, min_amount, tick_size,
+                maker_fee_rate, taker_fee_rate, leverage,
+                is_copy_trading_available, is_market_available, open_interest_volume,
+                updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `)
+
+        stmt.run(
+            contract.market,
+            contract.base_ccy,
+            contract.quote_ccy,
+            contract.contract_type,
+            contract.status,
+            contract.base_ccy_precision ?? null,
+            contract.quote_ccy_precision ?? null,
+            contract.min_amount ?? null,
+            contract.tick_size ?? null,
+            contract.maker_fee_rate ?? null,
+            contract.taker_fee_rate ?? null,
+            contract.leverage ?? null,
+            contract.is_copy_trading_available ? 1 : 0,
+            contract.is_market_available ? 1 : 0,
+            contract.open_interest_volume ?? null
+        )
+    }
+
+    // Batch insert/update multiple CoinEx contracts
+    upsertCoinexPerpetuals(contracts: CoinexPerpetualContract[]): void {
+        const insertMany = this.db.transaction((contracts: CoinexPerpetualContract[]) => {
+            for (const contract of contracts) {
+                this.upsertCoinexPerpetual(contract)
+            }
+        })
+        insertMany(contracts)
+    }
+
+    // Get all CoinEx perpetual contracts
+    getAllCoinexPerpetuals(): CoinexPerpetualContract[] {
+        const stmt = this.db.prepare(`
+            SELECT * FROM coinex_perpetuals ORDER BY market
+        `)
+
+        const rows = stmt.all()
+        return rows.map(this.rowToCoinexContract)
+    }
+
+    // Get active CoinEx perpetual contracts only
+    getActiveCoinexPerpetuals(): CoinexPerpetualContract[] {
+        const stmt = this.db.prepare(`
+            SELECT * FROM coinex_perpetuals WHERE status = 'online' ORDER BY market
+        `)
+
+        const rows = stmt.all()
+        return rows.map(this.rowToCoinexContract)
+    }
+
+    // Get CoinEx perpetual by market
+    getCoinexPerpetualByMarket(market: string): CoinexPerpetualContract | null {
+        const stmt = this.db.prepare(`
+            SELECT * FROM coinex_perpetuals WHERE market = ?
+        `)
+
+        const row = stmt.get(market)
+        return row ? this.rowToCoinexContract(row) : null
+    }
+
+    // Get CoinEx perpetuals by base currency
+    getCoinexPerpetualsByBaseCcy(baseCcy: string): CoinexPerpetualContract[] {
+        const stmt = this.db.prepare(`
+            SELECT * FROM coinex_perpetuals WHERE base_ccy = ? ORDER BY market
+        `)
+
+        const rows = stmt.all(baseCcy)
+        return rows.map(this.rowToCoinexContract)
+    }
+
+    // Helper method to convert database row to CoinEx contract object
+    private rowToCoinexContract(row: any): CoinexPerpetualContract {
+        return {
+            id: row.id,
+            market: row.market,
+            base_ccy: row.base_ccy,
+            quote_ccy: row.quote_ccy,
+            contract_type: row.contract_type,
+            status: row.status,
+            base_ccy_precision: row.base_ccy_precision,
+            quote_ccy_precision: row.quote_ccy_precision,
+            min_amount: row.min_amount,
+            tick_size: row.tick_size,
+            maker_fee_rate: row.maker_fee_rate,
+            taker_fee_rate: row.taker_fee_rate,
+            leverage: row.leverage,
+            is_copy_trading_available: Boolean(row.is_copy_trading_available),
+            is_market_available: Boolean(row.is_market_available),
+            open_interest_volume: row.open_interest_volume,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+        }
+    }
+
+    // Insert a single CoinEx funding rate
+    insertCoinexFundingRate(fundingRate: CoinexFundingRateRecord): void {
+        const stmt = this.db.prepare(`
+            INSERT INTO coinex_funding_rates (
+                market, latest_funding_rate, latest_funding_time, 
+                next_funding_rate, next_funding_time, max_funding_rate, 
+                min_funding_rate, mark_price
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        stmt.run(
+            fundingRate.market,
+            fundingRate.latest_funding_rate,
+            fundingRate.latest_funding_time,
+            fundingRate.next_funding_rate,
+            fundingRate.next_funding_time,
+            fundingRate.max_funding_rate ?? null,
+            fundingRate.min_funding_rate ?? null,
+            fundingRate.mark_price ?? null
+        )
+    }
+
+    // Batch insert CoinEx funding rates
+    insertCoinexFundingRates(fundingRates: CoinexFundingRateRecord[]): void {
+        const insertMany = this.db.transaction((rates: CoinexFundingRateRecord[]) => {
+            for (const rate of rates) {
+                this.insertCoinexFundingRate(rate)
+            }
+        })
+        insertMany(fundingRates)
+    }
+
+    // Get latest CoinEx funding rates for all markets
+    getLatestCoinexFundingRates(): CoinexFundingRateRecord[] {
+        const stmt = this.db.prepare(`
+            SELECT market, latest_funding_rate as latest_funding_rate, 
+                   latest_funding_time as latest_funding_time,
+                   next_funding_rate as next_funding_rate, 
+                   next_funding_time as next_funding_time,
+                   max_funding_rate as max_funding_rate,
+                   min_funding_rate as min_funding_rate,
+                   mark_price as mark_price,
+                   fetched_at as fetchedAt
+            FROM coinex_funding_rates
+            WHERE (market, fetched_at) IN (
+                SELECT market, MAX(fetched_at)
+                FROM coinex_funding_rates
+                GROUP BY market
+            )
+            ORDER BY market
+        `)
+        return stmt.all() as CoinexFundingRateRecord[]
+    }
+
+    // Get CoinEx funding rates for a specific market
+    getCoinexFundingRatesByMarket(market: string): CoinexFundingRateRecord[] {
+        const stmt = this.db.prepare(`
+            SELECT market, latest_funding_rate as latest_funding_rate, 
+                   latest_funding_time as latest_funding_time,
+                   next_funding_rate as next_funding_rate, 
+                   next_funding_time as next_funding_time,
+                   max_funding_rate as max_funding_rate,
+                   min_funding_rate as min_funding_rate,
+                   mark_price as mark_price,
+                   fetched_at as fetchedAt
+            FROM coinex_funding_rates
+            WHERE market = ?
+            ORDER BY fetched_at DESC
+        `)
+        return stmt.all(market) as CoinexFundingRateRecord[]
+    }
+
+    // Get CoinEx funding rate history with limit
+    getCoinexFundingRateHistory(limit: number = 100): CoinexFundingRateRecord[] {
+        const stmt = this.db.prepare(`
+            SELECT market, latest_funding_rate as latest_funding_rate, 
+                   latest_funding_time as latest_funding_time,
+                   next_funding_rate as next_funding_rate, 
+                   next_funding_time as next_funding_time,
+                   max_funding_rate as max_funding_rate,
+                   min_funding_rate as min_funding_rate,
+                   mark_price as mark_price,
+                   fetched_at as fetchedAt
+            FROM coinex_funding_rates
+            ORDER BY fetched_at DESC
+            LIMIT ?
+        `)
+        return stmt.all(limit) as CoinexFundingRateRecord[]
+    }
+
+    // Clean old CoinEx funding rates (older than specified days)
+    cleanOldCoinexFundingRates(daysToKeep: number = 30): void {
+        const stmt = this.db.prepare(`
+            DELETE FROM coinex_funding_rates
+            WHERE fetched_at < datetime('now', '-${daysToKeep} days')
+        `)
+        stmt.run()
+        this.updateMetadata("coinex_funding_rates_last_update", new Date().toISOString())
+    }
+
+    // Get CoinEx funding rate statistics
+    getCoinexFundingRateStats(): {
+        totalRecords: number
+        uniqueMarkets: number
+        lastUpdate: string | null
+    } {
+        const totalStmt = this.db.prepare(`SELECT COUNT(*) as count FROM coinex_funding_rates`)
+        const uniqueStmt = this.db.prepare(`SELECT COUNT(DISTINCT market) as count FROM coinex_funding_rates`)
+        const lastUpdate = this.getMetadata("coinex_funding_rates_last_update")
+
+        const totalResult = totalStmt.get() as { count: number }
+        const uniqueResult = uniqueStmt.get() as { count: number }
+
+        return {
+            totalRecords: totalResult.count,
+            uniqueMarkets: uniqueResult.count,
+            lastUpdate: lastUpdate?.value || null,
+        }
+    }
+
+    // Get CoinEx database statistics
+    getCoinexStats(): { totalContracts: number; activeContracts: number; lastUpdate: string | null } {
+        const totalStmt = this.db.prepare(`SELECT COUNT(*) as count FROM coinex_perpetuals`)
+        const activeStmt = this.db.prepare(`SELECT COUNT(*) as count FROM coinex_perpetuals WHERE status = 'online'`)
+        const lastUpdate = this.getMetadata("coinex_perpetuals_last_update")
+
+        const totalResult = totalStmt.get() as { count: number }
+        const activeResult = activeStmt.get() as { count: number }
+
+        return {
+            totalContracts: totalResult.count,
+            activeContracts: activeResult.count,
+            lastUpdate: lastUpdate?.value || null,
+        }
+    }
+
+    // Clear all CoinEx perpetual contracts
+    clearAllCoinexPerpetuals(): void {
+        const stmt = this.db.prepare(`DELETE FROM coinex_perpetuals`)
+        stmt.run()
+        this.updateMetadata("coinex_perpetuals_count", "0")
+    }
+
+    // Get all CoinEx markets
+    getAllCoinexMarkets(): string[] {
+        const stmt = this.db.prepare(`
+            SELECT market FROM coinex_perpetuals ORDER BY market
+        `)
+        const rows = stmt.all() as { market: string }[]
+        return rows.map((row) => row.market)
+    }
+
+    // Get active CoinEx markets
+    getActiveCoinexMarkets(): string[] {
+        const stmt = this.db.prepare(`
+            SELECT market FROM coinex_perpetuals WHERE status = 'online' ORDER BY market
+        `)
+        const rows = stmt.all() as { market: string }[]
+        return rows.map((row) => row.market)
+    }
+
+    // Get CoinEx markets by base currency
+    getCoinexMarketsByBaseCcy(baseCcy: string): string[] {
+        const stmt = this.db.prepare(`
+            SELECT market FROM coinex_perpetuals WHERE base_ccy = ? ORDER BY market
+        `)
+        const rows = stmt.all(baseCcy) as { market: string }[]
+        return rows.map((row) => row.market)
     }
 }
