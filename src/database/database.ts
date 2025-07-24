@@ -1,7 +1,7 @@
 import Database from "better-sqlite3"
 import { join } from "path"
 import { readFileSync } from "fs"
-import type { BybitPerpetualContract, DatabaseMetadata } from "./types"
+import type { BybitPerpetualContract, DatabaseMetadata, BybitFundingRate } from "./types"
 
 export class DatabaseService {
     private db: Database.Database
@@ -274,5 +274,91 @@ export class DatabaseService {
             symbol: contract.symbol,
             data: contract,
         }))
+    }
+
+    // Insert a single funding rate
+    insertFundingRate(fundingRate: BybitFundingRate): void {
+        const stmt = this.db.prepare(`
+            INSERT INTO bybit_funding_rates (symbol, funding_rate, next_funding_time)
+            VALUES (?, ?, ?)
+        `)
+        stmt.run(fundingRate.symbol, fundingRate.fundingRate, fundingRate.nextFundingTime)
+    }
+
+    // Batch insert funding rates
+    insertFundingRates(fundingRates: BybitFundingRate[]): void {
+        const insertMany = this.db.transaction((rates: BybitFundingRate[]) => {
+            for (const rate of rates) {
+                this.insertFundingRate(rate)
+            }
+        })
+        insertMany(fundingRates)
+    }
+
+    // Get latest funding rates for all symbols
+    getLatestFundingRates(): BybitFundingRate[] {
+        const stmt = this.db.prepare(`
+            SELECT symbol, funding_rate as fundingRate, next_funding_time as nextFundingTime, fetched_at as fetchedAt
+            FROM bybit_funding_rates
+            WHERE (symbol, fetched_at) IN (
+                SELECT symbol, MAX(fetched_at)
+                FROM bybit_funding_rates
+                GROUP BY symbol
+            )
+            ORDER BY symbol
+        `)
+        return stmt.all() as BybitFundingRate[]
+    }
+
+    // Get funding rates for a specific symbol
+    getFundingRatesBySymbol(symbol: string): BybitFundingRate[] {
+        const stmt = this.db.prepare(`
+            SELECT symbol, funding_rate as fundingRate, next_funding_time as nextFundingTime, fetched_at as fetchedAt
+            FROM bybit_funding_rates
+            WHERE symbol = ?
+            ORDER BY fetched_at DESC
+        `)
+        return stmt.all(symbol) as BybitFundingRate[]
+    }
+
+    // Get funding rate history with limit
+    getFundingRateHistory(limit: number = 100): BybitFundingRate[] {
+        const stmt = this.db.prepare(`
+            SELECT symbol, funding_rate as fundingRate, next_funding_time as nextFundingTime, fetched_at as fetchedAt
+            FROM bybit_funding_rates
+            ORDER BY fetched_at DESC
+            LIMIT ?
+        `)
+        return stmt.all(limit) as BybitFundingRate[]
+    }
+
+    // Clean old funding rates (older than specified days)
+    cleanOldFundingRates(daysToKeep: number = 30): void {
+        const stmt = this.db.prepare(`
+            DELETE FROM bybit_funding_rates
+            WHERE fetched_at < datetime('now', '-${daysToKeep} days')
+        `)
+        stmt.run()
+        this.updateMetadata("bybit_funding_rates_last_update", new Date().toISOString())
+    }
+
+    // Get funding rate statistics
+    getFundingRateStats(): {
+        totalRecords: number
+        uniqueSymbols: number
+        lastUpdate: string | null
+    } {
+        const totalStmt = this.db.prepare(`SELECT COUNT(*) as count FROM bybit_funding_rates`)
+        const uniqueStmt = this.db.prepare(`SELECT COUNT(DISTINCT symbol) as count FROM bybit_funding_rates`)
+        const lastUpdate = this.getMetadata("bybit_funding_rates_last_update")
+
+        const totalResult = totalStmt.get() as { count: number }
+        const uniqueResult = uniqueStmt.get() as { count: number }
+
+        return {
+            totalRecords: totalResult.count,
+            uniqueSymbols: uniqueResult.count,
+            lastUpdate: lastUpdate?.value || null,
+        }
     }
 }

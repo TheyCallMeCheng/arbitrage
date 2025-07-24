@@ -1,4 +1,5 @@
 import { BybitDataFeed } from "./datafeed/bybit"
+import { DatabaseService } from "./database"
 
 async function main() {
     console.log("🚀 Arbitrage Data Feed System")
@@ -29,6 +30,32 @@ async function main() {
         console.log(
             `\n✅ Successfully processed ${result.data.filter((d) => d.success).length}/${result.data.length} symbols`
         )
+
+        // Save successful funding rates to database
+        const successfulRates = result.data.filter((d) => d.success)
+        if (successfulRates.length > 0) {
+            const db = new DatabaseService()
+            try {
+                const fundingRates = successfulRates.map((item) => ({
+                    symbol: item.symbol,
+                    fundingRate: item.rate || 0,
+                    nextFundingTime: item.timestamp || 0,
+                }))
+
+                db.insertFundingRates(fundingRates)
+                db.updateMetadata("bybit_funding_rates_last_update", new Date().toISOString())
+
+                console.log(`\n💾 Saved ${fundingRates.length} funding rates to database`)
+
+                // Show database stats
+                const stats = db.getFundingRateStats()
+                console.log(
+                    `📈 Database now has ${stats.totalRecords} total funding rate records for ${stats.uniqueSymbols} symbols`
+                )
+            } finally {
+                db.close()
+            }
+        }
 
         if (result.errors.length > 0) {
             console.log(`\n⚠️  ${result.errors.length} errors encountered:`)

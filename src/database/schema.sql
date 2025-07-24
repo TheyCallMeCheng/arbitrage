@@ -50,7 +50,23 @@ CREATE TABLE IF NOT EXISTS metadata (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Create table for storing funding rates
+CREATE TABLE IF NOT EXISTS bybit_funding_rates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT NOT NULL,
+    funding_rate REAL,
+    next_funding_time BIGINT,
+    fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (symbol) REFERENCES bybit_perpetuals(symbol)
+);
+
+-- Create indexes for funding rates table
+CREATE INDEX IF NOT EXISTS idx_bybit_funding_rates_symbol ON bybit_funding_rates(symbol);
+CREATE INDEX IF NOT EXISTS idx_bybit_funding_rates_fetched_at ON bybit_funding_rates(fetched_at);
+CREATE INDEX IF NOT EXISTS idx_bybit_funding_rates_next_funding_time ON bybit_funding_rates(next_funding_time);
+
 -- Insert initial metadata
 INSERT OR IGNORE INTO metadata (key, value) VALUES 
     ('bybit_perpetuals_last_update', '0'),
-    ('bybit_perpetuals_count', '0');
+    ('bybit_perpetuals_count', '0'),
+    ('bybit_funding_rates_last_update', '0');

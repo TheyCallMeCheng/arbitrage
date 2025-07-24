@@ -93,3 +93,18 @@ export interface DatabaseMetadata {
     value: string
     updatedAt: string
 }
+
+export interface BybitFundingRate {
+    id?: number
+    symbol: string
+    fundingRate: number
+    nextFundingTime: number
+    fetchedAt?: string
+}
+
+export interface FundingRateWithSymbol {
+    symbol: string
+    fundingRate: number
+    nextFundingTime: number
+    fetchedAt?: string
+}

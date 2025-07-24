@@ -1,2 +1,8 @@
 export { DatabaseService } from "./database"
-export type { BybitPerpetualContract, BybitInstrumentsResponse, DatabaseMetadata } from "./types"
+export type {
+    BybitPerpetualContract,
+    BybitInstrumentsResponse,
+    DatabaseMetadata,
+    BybitFundingRate,
+    FundingRateWithSymbol,
+} from "./types"
