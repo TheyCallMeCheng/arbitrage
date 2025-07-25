@@ -1,5 +1,6 @@
 import { BybitDataFeed } from "../datafeed/bybit/src/index"
 import { CoinexPerpetualsFetcher } from "../datafeed/coinex/src/perpetuals"
+import { ProfitCalculator } from "./profit-calculator"
 
 interface FundingRate {
     symbol: string
@@ -7,23 +8,25 @@ interface FundingRate {
     timestamp: number
 }
 
-interface ArbitrageOpportunity {
+interface ProfitCalculation {
     symbol: string
-    buyExchange: string
-    sellExchange: string
-    buyRate: number
-    sellRate: number
-    rateDifference: number
-    potentialProfit: number
-    executionFees: number
+    fundingRateDiff: number
+    immediateSpread: number
+    totalFees: number
+    estimatedSlippage: number
+    netProfit: number
+    shouldExecute: boolean
 }
 
 class ArbitrageMonitor {
     private isRunning = false
     private intervalId: NodeJS.Timeout | null = null
     private updateInterval = 10000 // 10 seconds
-    private executionFees = 0.0002 // 0.02%
-    private minProfitThreshold = 0.0001 // 0.01%
+    private profitCalculator = new ProfitCalculator({
+        minProfitThreshold: 0.0001, // 0.01%
+        positionSize: 100, // $100 position
+        slippageBuffer: 0.0005, // 0.05% buffer
+    })
 
     constructor() {}
 
@@ -34,7 +37,7 @@ class ArbitrageMonitor {
         }
 
         this.isRunning = true
-        console.log(`Starting arbitrage monitor with ${this.updateInterval}ms interval...`)
+        console.log(`Starting enhanced arbitrage monitor with ${this.updateInterval}ms interval...`)
 
         // Run immediately
         await this.checkOpportunities()
@@ -56,39 +59,48 @@ class ArbitrageMonitor {
             clearInterval(this.intervalId)
             this.intervalId = null
         }
-        console.log("Arbitrage monitor stopped")
+        console.log("Enhanced arbitrage monitor stopped")
     }
 
-    private async fetchFundingRates(exchangeName: string): Promise<FundingRate[]> {
-        if (exchangeName === "bybit") {
-            const bybitFeed = new BybitDataFeed()
-            const result = await bybitFeed.getMultipleFundingRates()
-            return result.data
-                .filter((item) => item.success)
-                .map((item) => ({
-                    symbol: item.symbol,
-                    rate: item.rate,
-                    timestamp: item.timestamp,
-                }))
-        } else if (exchangeName === "coinex") {
-            const coinexFetcher = new CoinexPerpetualsFetcher()
-            const rates = await coinexFetcher.fetchAllFundingRates()
-            return rates.map((rate) => ({
-                symbol: rate.market,
-                rate: rate.latest_funding_rate,
-                timestamp: Date.now(),
+    private async fetchBybitFundingRates(): Promise<FundingRate[]> {
+        const bybitFeed = new BybitDataFeed()
+        const result = await bybitFeed.getMultipleFundingRates()
+        return result.data
+            .filter((item) => item.success)
+            .map((item) => ({
+                symbol: item.symbol,
+                rate: item.rate,
+                timestamp: item.timestamp,
             }))
-        } else {
-            throw new Error(`Unsupported exchange: ${exchangeName}`)
-        }
     }
 
-    private calculateArbitrageOpportunities(
+    private async fetchCoinexFundingRates(): Promise<FundingRate[]> {
+        const coinexFetcher = new CoinexPerpetualsFetcher()
+        const rates = await coinexFetcher.fetchAllFundingRates()
+        return rates.map((rate) => ({
+            symbol: rate.market,
+            rate: rate.latest_funding_rate,
+            timestamp: Date.now(),
+        }))
+    }
+
+    private calculateFundingOpportunities(
         bybitRates: FundingRate[],
         coinexRates: FundingRate[]
-    ): ArbitrageOpportunity[] {
-        const opportunities: ArbitrageOpportunity[] = []
-        const startTime = Date.now()
+    ): Array<{
+        symbol: string
+        buyExchange: string
+        sellExchange: string
+        buyRate: number
+        sellRate: number
+    }> {
+        const opportunities: Array<{
+            symbol: string
+            buyExchange: string
+            sellExchange: string
+            buyRate: number
+            sellRate: number
+        }> = []
 
         // Create maps for quick lookup
         const bybitMap = new Map(bybitRates.map((r) => [r.symbol, r.rate]))
@@ -109,64 +121,60 @@ class ArbitrageMonitor {
 
             for (const opp of opportunitiesToCheck) {
                 const rateDifference = Math.abs(opp.sellRate - opp.buyRate)
-                const potentialProfit = rateDifference - this.executionFees
 
-                if (potentialProfit > this.minProfitThreshold) {
+                // Only include if funding rate difference is significant
+                if (rateDifference > 0.0001) {
                     opportunities.push({
                         symbol,
                         buyExchange: opp.buy,
                         sellExchange: opp.sell,
                         buyRate: opp.buyRate,
                         sellRate: opp.sellRate,
-                        rateDifference,
-                        potentialProfit,
-                        executionFees: this.executionFees,
                     })
                 }
             }
         }
 
-        return opportunities.sort((a, b) => b.potentialProfit - a.potentialProfit)
+        return opportunities
     }
 
     private async checkOpportunities() {
         const timestamp = new Date().toLocaleTimeString()
-        console.log(`\n[${timestamp}] Checking for arbitrage opportunities...`)
+        console.log(`\n[${timestamp}] Checking opportunities...`)
 
         try {
             const startTime = Date.now()
 
             // Fetch funding rates from both exchanges in parallel
             const [bybitRates, coinexRates] = await Promise.all([
-                this.fetchFundingRates("bybit"),
-                this.fetchFundingRates("coinex"),
+                this.fetchBybitFundingRates(),
+                this.fetchCoinexFundingRates(),
             ])
 
             const fetchTime = Date.now() - startTime
 
-            // Calculate arbitrage opportunities
-            const opportunities = this.calculateArbitrageOpportunities(bybitRates, coinexRates)
+            // Calculate funding rate opportunities
+            const opportunities = this.calculateFundingOpportunities(bybitRates, coinexRates)
 
             if (opportunities.length === 0) {
-                console.log("No profitable opportunities found.")
+                console.log("No funding rate opportunities")
                 return
             }
 
-            console.log(`Found ${opportunities.length} profitable opportunities`)
-            console.log("\n📈 Top 3 Opportunities:")
+            // Calculate enhanced profits for opportunities
+            const enhancedOpportunities = await this.profitCalculator.calculateProfitsForOpportunities(opportunities)
 
-            opportunities.slice(0, 3).forEach((opp, index) => {
-                console.log(`  ${index + 1}. ${opp.symbol}`)
-                console.log(`     Buy: ${opp.buyExchange} (${(opp.buyRate * 100).toFixed(4)}%)`)
-                console.log(`     Sell: ${opp.sellExchange} (${(opp.sellRate * 100).toFixed(4)}%)`)
-                console.log(`     Profit: ${(opp.potentialProfit * 100).toFixed(4)}%`)
-                console.log(`     Diff: ${(opp.rateDifference * 100).toFixed(4)}%`)
-                console.log("")
+            if (enhancedOpportunities.length === 0) {
+                console.log("No profitable opportunities after price analysis")
+                return
+            }
+
+            console.log(`✅ ${enhancedOpportunities.length} profitable opportunities found`)
+            enhancedOpportunities.slice(0, 3).forEach((opp, index) => {
+                console.log(`  ${index + 1}. ${opp.symbol}: ${(opp.netProfit * 100).toFixed(4)}% profit`)
             })
-
-            console.log(`Performance: ${fetchTime}ms fetch, ${opportunities.length} opportunities`)
         } catch (error) {
-            console.error("Error checking opportunities:", error)
+            console.error(`Error: ${error instanceof Error ? error.message : "Unknown error"}`)
         }
     }
 
@@ -185,13 +193,13 @@ if (require.main === module) {
 
     // Handle graceful shutdown
     process.on("SIGINT", () => {
-        console.log("\nShutting down monitor...")
+        console.log("\nShutting down enhanced monitor...")
         monitor.stop()
         process.exit(0)
     })
 
     process.on("SIGTERM", () => {
-        console.log("\nShutting down monitor...")
+        console.log("\nShutting down enhanced monitor...")
         monitor.stop()
         process.exit(0)
     })
