@@ -57,15 +57,16 @@ export class BybitPriceFeed {
 
     async getOrderBook(symbol: string, limit: number = 50): Promise<OrderBookDepth | null> {
         try {
-            const url = `${this.baseUrl}/v5/market/orderbook/L2?category=linear&symbol=${symbol}&limit=${limit}`
+            const url = `${this.baseUrl}/v5/market/orderbook?category=linear&symbol=${symbol}&limit=${limit}`
             const response = await axios.get(url)
 
             if (response.data.retCode !== 0) {
                 throw new Error(response.data.retMsg)
             }
 
-            const bids = response.data.result.bids.map((b: any) => [parseFloat(b[0]), parseFloat(b[1])])
-            const asks = response.data.result.asks.map((a: any) => [parseFloat(a[0]), parseFloat(a[1])])
+            const result = response.data.result
+            const bids = result.b.map((b: any) => [parseFloat(b[0]), parseFloat(b[1])])
+            const asks = result.a.map((a: any) => [parseFloat(a[0]), parseFloat(a[1])])
 
             return {
                 symbol,
@@ -126,17 +127,22 @@ export class CoinexPriceFeed {
 
     async getPriceData(symbol: string): Promise<PriceData | null> {
         try {
-            // Use the correct Coinex perpetual endpoint
-            const url = `${this.baseUrl}/v1/market/ticker?market=${symbol}`
+            // Use the correct Coinex futures depth endpoint to get bid/ask
+            const url = `${this.baseUrl}/v2/futures/depth?market=${symbol}&limit=5&interval=0`
             const response = await axios.get(url)
 
             if (response.data.code !== 0) {
                 throw new Error(response.data.message)
             }
 
-            const data = response.data.data
-            const bid = parseFloat(data.buy)
-            const ask = parseFloat(data.sell)
+            const depth = response.data.data.depth
+            if (!depth.bids.length || !depth.asks.length) {
+                console.log(`No bids/asks for ${symbol}`)
+                return null
+            }
+
+            const bid = parseFloat(depth.bids[0][0])
+            const ask = parseFloat(depth.asks[0][0])
             const mid = (bid + ask) / 2
             const spread = ((ask - bid) / mid) * 100
 
@@ -149,22 +155,23 @@ export class CoinexPriceFeed {
                 timestamp: Date.now(),
             }
         } catch (error) {
-            // Don't log 404 errors for missing symbols
+            // Don't log errors for missing symbols
             return null
         }
     }
 
     async getOrderBook(symbol: string, limit: number = 50): Promise<OrderBookDepth | null> {
         try {
-            const url = `${this.baseUrl}/v1/market/depth?market=${symbol}&limit=${limit}&merge=0`
+            const url = `${this.baseUrl}/v2/futures/depth?market=${symbol}&limit=${limit}&interval=0`
             const response = await axios.get(url)
 
             if (response.data.code !== 0) {
                 throw new Error(response.data.message)
             }
 
-            const bids = response.data.data.bids.map((b: any) => [parseFloat(b[0]), parseFloat(b[1])])
-            const asks = response.data.data.asks.map((a: any) => [parseFloat(a[0]), parseFloat(a[1])])
+            const depth = response.data.data.depth
+            const bids = depth.bids.map((b: any) => [parseFloat(b[0]), parseFloat(b[1])])
+            const asks = depth.asks.map((a: any) => [parseFloat(a[0]), parseFloat(a[1])])
 
             return {
                 symbol,

@@ -9,6 +9,7 @@ interface ProfitCalculation {
     estimatedSlippage: number
     netProfit: number
     shouldExecute: boolean
+    tradeDirection: string
     details: {
         bybitFundingRate: number
         coinexFundingRate: number
@@ -68,28 +69,47 @@ export class ProfitCalculator {
                 this.coinexPriceFeed.getOrderBook(symbol),
             ])
 
-            // Calculate slippage for $100 position
-            const positionSize = this.config.positionSize
-            const bybitSlippage = bybitOrderbook
-                ? this.bybitPriceFeed.calculateSlippage(bybitOrderbook, positionSize, "buy")
-                : this.config.slippageBuffer
-            const coinexSlippage = coinexOrderbook
-                ? this.coinexPriceFeed.calculateSlippage(coinexOrderbook, positionSize, "sell")
-                : this.config.slippageBuffer
-
-            // Calculate funding rate differential
+            // Calculate funding rate differential first to determine trade direction
             const fundingRateDiff = Math.abs(coinexFundingRate - bybitFundingRate)
 
-            // Calculate immediate spread PnL
-            let immediateSpread = 0
+            // Calculate slippage based on the correct trade direction
+            const positionSize = this.config.positionSize
+            let bybitSlippage: number
+            let coinexSlippage: number
 
-            // Determine optimal direction based on prices
-            if (bybitPrice.ask < coinexPrice.bid) {
-                // Buy on Bybit, sell on Coinex
-                immediateSpread = ((coinexPrice.bid - bybitPrice.ask) / bybitPrice.ask) * 100
-            } else if (coinexPrice.ask < bybitPrice.bid) {
-                // Buy on Coinex, sell on Bybit
+            if (bybitFundingRate > coinexFundingRate) {
+                // Short on Bybit (sell), Long on Coinex (buy)
+                bybitSlippage = bybitOrderbook
+                    ? this.bybitPriceFeed.calculateSlippage(bybitOrderbook, positionSize, "sell")
+                    : this.config.slippageBuffer
+                coinexSlippage = coinexOrderbook
+                    ? this.coinexPriceFeed.calculateSlippage(coinexOrderbook, positionSize, "buy")
+                    : this.config.slippageBuffer
+            } else {
+                // Short on Coinex (sell), Long on Bybit (buy)
+                bybitSlippage = bybitOrderbook
+                    ? this.bybitPriceFeed.calculateSlippage(bybitOrderbook, positionSize, "buy")
+                    : this.config.slippageBuffer
+                coinexSlippage = coinexOrderbook
+                    ? this.coinexPriceFeed.calculateSlippage(coinexOrderbook, positionSize, "sell")
+                    : this.config.slippageBuffer
+            }
+
+            // Calculate immediate spread PnL based on funding rate direction
+            let immediateSpread = 0
+            let tradeDirection = ""
+
+            // Determine direction based on funding rates (not prices)
+            // We want to short on the exchange with higher funding rate (receive funding)
+            // and long on the exchange with lower funding rate (pay less funding)
+            if (bybitFundingRate > coinexFundingRate) {
+                // Short on Bybit (sell at bid), Long on Coinex (buy at ask)
                 immediateSpread = ((bybitPrice.bid - coinexPrice.ask) / coinexPrice.ask) * 100
+                tradeDirection = "Short Bybit, Long Coinex"
+            } else {
+                // Short on Coinex (sell at bid), Long on Bybit (buy at ask)
+                immediateSpread = ((coinexPrice.bid - bybitPrice.ask) / bybitPrice.ask) * 100
+                tradeDirection = "Short Coinex, Long Bybit"
             }
 
             // Calculate total fees (using taker fees for guaranteed execution)
@@ -111,6 +131,7 @@ export class ProfitCalculator {
                 estimatedSlippage: estimatedSlippage / 100,
                 netProfit,
                 shouldExecute,
+                tradeDirection,
                 details: {
                     bybitFundingRate,
                     coinexFundingRate,
@@ -141,13 +162,61 @@ export class ProfitCalculator {
     ): Promise<ProfitCalculation[]> {
         const results: ProfitCalculation[] = []
 
-        for (const opp of opportunities) {
+        for (let i = 0; i < opportunities.length; i++) {
+            const opp = opportunities[i]
+            console.log(`  📊 Analyzing ${i + 1}/${opportunities.length}: ${opp.symbol}`)
+
             const bybitRate = opp.buyExchange === "bybit" ? opp.buyRate : opp.sellRate
             const coinexRate = opp.buyExchange === "coinex" ? opp.buyRate : opp.sellRate
 
-            const profit = await this.calculateProfit(opp.symbol, bybitRate, coinexRate)
-            if (profit && profit.shouldExecute) {
-                results.push(profit)
+            try {
+                const profit = await this.calculateProfit(opp.symbol, bybitRate, coinexRate)
+                if (profit && profit.shouldExecute) {
+                    results.push(profit)
+                    console.log(`    ✅ ${opp.symbol}: ${(profit.netProfit * 100).toFixed(4)}% profit`)
+                    console.log(
+                        `       📊 Bybit: $${profit.details.bybitBid.toFixed(4)}/$${profit.details.bybitAsk.toFixed(
+                            4
+                        )} | Coinex: $${profit.details.coinexBid.toFixed(4)}/$${profit.details.coinexAsk.toFixed(4)}`
+                    )
+                    console.log(
+                        `       📈 Funding Rates - Bybit: ${(profit.details.bybitFundingRate * 100).toFixed(
+                            4
+                        )}% | Coinex: ${(profit.details.coinexFundingRate * 100).toFixed(4)}%`
+                    )
+                    console.log(`       🔄 Strategy: ${profit.tradeDirection}`)
+                    console.log(
+                        `       💰 Funding: ${(profit.fundingRateDiff * 100).toFixed(4)}% | Spread: ${(
+                            profit.immediateSpread * 100
+                        ).toFixed(4)}% | Fees: ${(profit.totalFees * 100).toFixed(4)}% | Slippage: ${(
+                            profit.estimatedSlippage * 100
+                        ).toFixed(4)}%`
+                    )
+                } else if (profit) {
+                    console.log(`    ❌ ${opp.symbol}: ${(profit.netProfit * 100).toFixed(4)}% (below threshold)`)
+                    console.log(
+                        `       📊 Bybit: $${profit.details.bybitBid.toFixed(4)}/$${profit.details.bybitAsk.toFixed(
+                            4
+                        )} | Coinex: $${profit.details.coinexBid.toFixed(4)}/$${profit.details.coinexAsk.toFixed(4)}`
+                    )
+                    console.log(
+                        `       📈 Funding Rates - Bybit: ${(profit.details.bybitFundingRate * 100).toFixed(
+                            4
+                        )}% | Coinex: ${(profit.details.coinexFundingRate * 100).toFixed(4)}%`
+                    )
+                    console.log(`       🔄 Strategy: ${profit.tradeDirection}`)
+                    console.log(
+                        `       💰 Funding: ${(profit.fundingRateDiff * 100).toFixed(4)}% | Spread: ${(
+                            profit.immediateSpread * 100
+                        ).toFixed(4)}% | Fees: ${(profit.totalFees * 100).toFixed(4)}% | Slippage: ${(
+                            profit.estimatedSlippage * 100
+                        ).toFixed(4)}%`
+                    )
+                } else {
+                    console.log(`    ❌ ${opp.symbol}: No price data available`)
+                }
+            } catch (error) {
+                console.log(`    ⚠️  ${opp.symbol}: Error - ${error instanceof Error ? error.message : "Unknown"}`)
             }
         }
 

@@ -113,25 +113,19 @@ class ArbitrageMonitor {
             const bybitRate = bybitMap.get(symbol)!
             const coinexRate = coinexMap.get(symbol)!
 
-            // Calculate both directions
-            const opportunitiesToCheck = [
-                { buy: "bybit", sell: "coinex", buyRate: bybitRate, sellRate: coinexRate },
-                { buy: "coinex", sell: "bybit", buyRate: coinexRate, sellRate: bybitRate },
-            ]
+            const rateDifference = Math.abs(coinexRate - bybitRate)
 
-            for (const opp of opportunitiesToCheck) {
-                const rateDifference = Math.abs(opp.sellRate - opp.buyRate)
-
-                // Only include if funding rate difference is significant
-                if (rateDifference > 0.0001) {
-                    opportunities.push({
-                        symbol,
-                        buyExchange: opp.buy,
-                        sellExchange: opp.sell,
-                        buyRate: opp.buyRate,
-                        sellRate: opp.sellRate,
-                    })
-                }
+            // Only include if funding rate difference is significant
+            if (rateDifference > 0.0001) {
+                // Since we determine trade direction based on funding rates in the profit calculator,
+                // we only need one opportunity per symbol pair
+                opportunities.push({
+                    symbol,
+                    buyExchange: "bybit", // This will be overridden by the profit calculator logic
+                    sellExchange: "coinex", // This will be overridden by the profit calculator logic
+                    buyRate: bybitRate,
+                    sellRate: coinexRate,
+                })
             }
         }
 
@@ -144,6 +138,7 @@ class ArbitrageMonitor {
 
         try {
             const startTime = Date.now()
+            console.log("📡 Fetching funding rates from exchanges...")
 
             // Fetch funding rates from both exchanges in parallel
             const [bybitRates, coinexRates] = await Promise.all([
@@ -152,17 +147,31 @@ class ArbitrageMonitor {
             ])
 
             const fetchTime = Date.now() - startTime
+            console.log(
+                `📊 Fetched ${bybitRates.length} Bybit rates and ${coinexRates.length} Coinex rates in ${fetchTime}ms`
+            )
 
             // Calculate funding rate opportunities
             const opportunities = this.calculateFundingOpportunities(bybitRates, coinexRates)
+            console.log(`🔍 Found ${opportunities.length} funding rate opportunities`)
 
             if (opportunities.length === 0) {
                 console.log("No funding rate opportunities")
                 return
             }
 
-            // Calculate enhanced profits for opportunities
-            const enhancedOpportunities = await this.profitCalculator.calculateProfitsForOpportunities(opportunities)
+            console.log("💰 Calculating profit potential...")
+            // Sort by funding rate difference and take top 10 to avoid API rate limits
+            const topOpportunities = opportunities
+                .sort((a, b) => Math.abs(b.sellRate - b.buyRate) - Math.abs(a.sellRate - a.buyRate))
+                .slice(0, 10)
+
+            console.log(`🎯 Analyzing top 3 opportunities by funding rate difference...`)
+            // Calculate enhanced profits for top 3 opportunities only
+            const top3Opportunities = topOpportunities.slice(0, 3)
+            const enhancedOpportunities = await this.profitCalculator.calculateProfitsForOpportunities(
+                top3Opportunities
+            )
 
             if (enhancedOpportunities.length === 0) {
                 console.log("No profitable opportunities after price analysis")
