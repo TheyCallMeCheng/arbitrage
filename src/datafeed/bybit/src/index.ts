@@ -1,9 +1,4 @@
-import * as dotenv from "dotenv"
-import { BybitClient, TickerResponse } from "./client"
-import { DatabaseService } from "../../../database"
-
-// Load environment variables
-dotenv.config()
+import axios from "axios"
 
 export interface FundingRateData {
     symbol: string
@@ -20,46 +15,29 @@ export interface MultiFundingRateResult {
 }
 
 export class BybitDataFeed {
-    private client: BybitClient
-    private symbols: string[]
+    private baseUrl = "https://api.bybit.com"
+    private symbols: string[] = []
 
     constructor(symbols?: string[]) {
         if (symbols && symbols.length > 0) {
             this.symbols = symbols
-        } else {
-            // Get all symbols from database if no symbols provided
-            const db = new DatabaseService()
-            try {
-                this.symbols = db.getActiveSymbols()
-                console.log(`Loaded ${this.symbols.length} active symbols from database`)
-            } finally {
-                db.close()
-            }
         }
-
-        const config = {
-            apiKey: process.env.BYBIT_API_KEY || "",
-            apiSecret: process.env.BYBIT_SECRET || "",
-            privateKey: process.env.BYBIT_PRIVATE_KEY || "",
-            baseUrl: process.env.BYBIT_BASE_URL || "https://api.bybit.com",
-        }
-
-        this.client = new BybitClient(config)
     }
 
     async getSingleFundingRate(symbol: string): Promise<FundingRateData> {
         try {
-            const data = await this.client.getTickerPublic(symbol)
+            const url = `${this.baseUrl}/v5/market/tickers?category=linear&symbol=${symbol}`
+            const response = await axios.get(url)
 
-            if (data.retCode !== 0) {
-                throw new Error(data.retMsg || "Unknown API error")
+            if (response.data.retCode !== 0) {
+                throw new Error(response.data.retMsg || "Unknown API error")
             }
 
-            if (!data.result?.list?.length) {
+            if (!response.data.result?.list?.length) {
                 throw new Error("No ticker data available")
             }
 
-            const ticker = data.result.list[0]
+            const ticker = response.data.result.list[0]
             return {
                 symbol,
                 rate: parseFloat(ticker.fundingRate),
@@ -79,8 +57,13 @@ export class BybitDataFeed {
 
     async getMultipleFundingRates(symbols?: string[]): Promise<MultiFundingRateResult> {
         const targetSymbols = symbols || this.symbols
-        const promises = targetSymbols.map((symbol) => this.getSingleFundingRate(symbol))
 
+        if (targetSymbols.length === 0) {
+            // Fetch all available symbols
+            return await this.fetchAllFundingRates()
+        }
+
+        const promises = targetSymbols.map((symbol) => this.getSingleFundingRate(symbol))
         const results = await Promise.allSettled(promises)
 
         const data: FundingRateData[] = []
@@ -111,12 +94,40 @@ export class BybitDataFeed {
         }
     }
 
-    async getFundingRatesFor(symbols: string[]): Promise<MultiFundingRateResult> {
-        return this.getMultipleFundingRates(symbols)
+    private async fetchAllFundingRates(): Promise<MultiFundingRateResult> {
+        try {
+            const url = `${this.baseUrl}/v5/market/tickers?category=linear`
+            const response = await axios.get(url)
+
+            if (response.data.retCode !== 0) {
+                throw new Error(response.data.retMsg || "API Error")
+            }
+
+            const data: FundingRateData[] = response.data.result.list
+                .filter((item: any) => parseFloat(item.fundingRate) !== 0)
+                .map((item: any) => ({
+                    symbol: item.symbol,
+                    rate: parseFloat(item.fundingRate),
+                    timestamp: parseInt(item.nextFundingTime),
+                    success: true,
+                }))
+
+            return {
+                data,
+                errors: [],
+                timestamp: Date.now(),
+            }
+        } catch (error) {
+            return {
+                data: [],
+                errors: [error instanceof Error ? error.message : "Unknown error"],
+                timestamp: Date.now(),
+            }
+        }
     }
 
-    getSupportedSymbols(): string[] {
-        return [...this.symbols]
+    async getFundingRatesFor(symbols: string[]): Promise<MultiFundingRateResult> {
+        return this.getMultipleFundingRates(symbols)
     }
 
     addSymbol(symbol: string): void {
@@ -128,15 +139,19 @@ export class BybitDataFeed {
     removeSymbol(symbol: string): void {
         this.symbols = this.symbols.filter((s) => s !== symbol)
     }
+
+    getSupportedSymbols(): string[] {
+        return [...this.symbols]
+    }
 }
 
 // Example usage
 async function main() {
-    const dataFeed = new BybitDataFeed(["BTCUSDT", "ETHUSDT", "SOLUSDT", "FARTCOINUSDT"])
+    const dataFeed = new BybitDataFeed()
 
     try {
         console.log("=".repeat(60))
-        console.log("Bybit Multi-Symbol Funding Rate Fetcher")
+        console.log("Bybit Funding Rate Fetcher")
         console.log("=".repeat(60))
 
         const result = await dataFeed.getMultipleFundingRates()
