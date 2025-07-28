@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settlement Monitor Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="settlement-monitor.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Settlement Monitor Dashboard</h1>
+            <p>Monitor funding rate settlements and price movements</p>
+            <nav class="nav-links">
+                <a href="index.html">Arbitrage Dashboard</a>
+                <a href="settlement-monitor.html" class="active">Settlement Monitor</a>
+            </nav>
+        </header>
+
+        <div class="controls">
+            <div class="filter-group">
+                <label for="sessionFilter">Session:</label>
+                <select id="sessionFilter">
+                    <option value="">All Sessions</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="symbolFilter">Symbol:</label>
+                <select id="symbolFilter">
+                    <option value="">All Symbols</option>
+                </select>
+            </div>
+            <button id="refreshBtn">Refresh Data</button>
+            <span id="lastUpdate">Loading...</span>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <h3>Total Sessions</h3>
+                <p id="totalSessions">-</p>
+            </div>
+            <div class="stat-card">
+                <h3>Total Snapshots</h3>
+                <p id="totalSnapshots">-</p>
+            </div>
+            <div class="stat-card">
+                <h3>Analyses</h3>
+                <p id="totalAnalyses">-</p>
+            </div>
+            <div class="stat-card">
+                <h3>Last Update</h3>
+                <p id="updateTime">-</p>
+            </div>
+        </div>
+
+        <!-- Sessions Table -->
+        <div class="section">
+            <h2>Settlement Sessions</h2>
+            <div class="table-container">
+                <table id="sessionsTable">
+                    <thead>
+                        <tr>
+                            <th>Session ID</th>
+                            <th>Settlement Time</th>
+                            <th>Selected Symbols</th>
+                            <th>Duration</th>
+                            <th>Snapshots</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sessionsTableBody">
+                        <tr>
+                            <td colspan="6" class="loading">Loading settlement sessions...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Analysis Results -->
+        <div class="section">
+            <h2>Analysis Results</h2>
+            <div class="table-container">
+                <table id="analysisTable">
+                    <thead>
+                        <tr>
+                            <th>Settlement Time</th>
+                            <th>Symbol</th>
+                            <th>Funding Rate</th>
+                            <th>Price Change</th>
+                            <th>Max Price Move</th>
+                            <th>Time to Max</th>
+                            <th>Volume Change</th>
+                            <th>Spread Change</th>
+                            <th>Theory Test</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="analysisTableBody">
+                        <tr>
+                            <td colspan="9" class="loading">Loading analysis data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Price Chart Section -->
+        <div class="section">
+            <h2>Price Movement Charts</h2>
+            <div class="chart-controls">
+                <select id="chartSymbolSelect">
+                    <option value="">Select Symbol</option>
+                </select>
+                <select id="chartSessionSelect">
+                    <option value="">Select Session</option>
+                </select>
+                <button id="generateChartBtn">Generate Chart</button>
+            </div>
+            <div id="chartContainer">
+                <canvas id="priceChart" width="800" height="400"></canvas>
+            </div>
+        </div>
+
+        <!-- Session Details Modal -->
+        <div id="sessionModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Session Details</h3>
+                    <span class="close">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div id="sessionDetails"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analysis Details Modal -->
+        <div id="analysisModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Analysis Details</h3>
+                    <span class="close">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div id="analysisDetails"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="settlement-monitor.js"></script>
+</body>
+
+</html>

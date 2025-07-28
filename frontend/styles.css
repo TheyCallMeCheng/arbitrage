@@ -32,6 +32,28 @@ header p {
     font-size: 1.1em;
 }
 
+.nav-links {
+    margin-top: 15px;
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+}
+
+.nav-links a {
+    padding: 8px 16px;
+    text-decoration: none;
+    color: #3498db;
+    border: 1px solid #3498db;
+    border-radius: 4px;
+    transition: all 0.3s;
+}
+
+.nav-links a:hover,
+.nav-links a.active {
+    background-color: #3498db;
+    color: white;
+}
+
 .controls {
     display: flex;
     gap: 20px;

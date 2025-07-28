@@ -1,0 +1,508 @@
+/* Settlement Monitor Specific Styles */
+
+.nav-links {
+    margin-top: 15px;
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+}
+
+.nav-links a {
+    padding: 8px 16px;
+    text-decoration: none;
+    color: #3498db;
+    border: 1px solid #3498db;
+    border-radius: 4px;
+    transition: all 0.3s;
+}
+
+.nav-links a:hover,
+.nav-links a.active {
+    background-color: #3498db;
+    color: white;
+}
+
+.section {
+    margin-bottom: 40px;
+}
+
+.section h2 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #3498db;
+}
+
+/* Chart Controls */
+.chart-controls {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.chart-controls select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+#chartContainer {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    text-align: center;
+}
+
+#priceChart {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Theory Test Results */
+.theory-pass {
+    color: #27ae60;
+    font-weight: bold;
+}
+
+.theory-fail {
+    color: #e74c3c;
+    font-weight: bold;
+}
+
+.theory-neutral {
+    color: #f39c12;
+    font-weight: bold;
+}
+
+/* Session Status */
+.session-active {
+    color: #27ae60;
+    font-weight: bold;
+}
+
+.session-completed {
+    color: #3498db;
+    font-weight: bold;
+}
+
+.session-error {
+    color: #e74c3c;
+    font-weight: bold;
+}
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 5% auto;
+    padding: 0;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid #ddd;
+    background-color: #f8f9fa;
+    border-radius: 8px 8px 0 0;
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: #2c3e50;
+}
+
+.close {
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.close:hover,
+.close:focus {
+    color: #000;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+/* Session Details */
+.session-info {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.session-info-item {
+    background-color: #f8f9fa;
+    padding: 10px;
+    border-radius: 4px;
+    border-left: 4px solid #3498db;
+}
+
+.session-info-item strong {
+    display: block;
+    color: #2c3e50;
+    margin-bottom: 5px;
+}
+
+/* Funding Rate Display */
+.funding-rate-positive {
+    color: #27ae60;
+    font-weight: bold;
+}
+
+.funding-rate-negative {
+    color: #e74c3c;
+    font-weight: bold;
+}
+
+.funding-rate-neutral {
+    color: #7f8c8d;
+    font-weight: bold;
+}
+
+/* Price Change Display */
+.price-change-up {
+    color: #27ae60;
+    font-weight: bold;
+}
+
+.price-change-down {
+    color: #e74c3c;
+    font-weight: bold;
+}
+
+.price-change-neutral {
+    color: #7f8c8d;
+    font-weight: bold;
+}
+
+/* Snapshot Timeline */
+.snapshot-timeline {
+    margin-top: 20px;
+}
+
+.timeline-item {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    border-left: 3px solid #3498db;
+    margin-left: 10px;
+    margin-bottom: 10px;
+    background-color: #f8f9fa;
+    border-radius: 0 4px 4px 0;
+}
+
+.timeline-time {
+    font-weight: bold;
+    color: #2c3e50;
+    min-width: 100px;
+}
+
+.timeline-type {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    margin-right: 10px;
+}
+
+.timeline-type.pre {
+    background-color: #f39c12;
+    color: white;
+}
+
+.timeline-type.settlement {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.timeline-type.post {
+    background-color: #27ae60;
+    color: white;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .nav-links {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .chart-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .chart-controls select,
+    .chart-controls button {
+        width: 100%;
+    }
+    
+    .session-info {
+        grid-template-columns: 1fr;
+    }
+    
+    .modal-content {
+        width: 95%;
+        margin: 2% auto;
+    }
+    
+    .timeline-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .timeline-time {
+        min-width: auto;
+        margin-bottom: 5px;
+    }
+}
+
+/* Loading States */
+.loading-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Chart Placeholder */
+.chart-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 400px;
+    background-color: #f8f9fa;
+    border: 2px dashed #ddd;
+    border-radius: 8px;
+    color: #7f8c8d;
+    font-size: 18px;
+}
+
+/* Data Quality Indicators */
+.data-quality-good {
+    color: #27ae60;
+}
+
+.data-quality-warning {
+    color: #f39c12;
+}
+
+.data-quality-error {
+    color: #e74c3c;
+}
+
+/* Analysis Details Modal Styles */
+.analysis-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #3498db;
+}
+
+.analysis-header h3 {
+    margin: 0;
+    color: #2c3e50;
+}
+
+.theory-result {
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.analysis-metrics {
+    margin-bottom: 25px;
+}
+
+.metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.metric-item {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #3498db;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.metric-item strong {
+    color: #2c3e50;
+    font-size: 14px;
+}
+
+.metric-item span {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.orderbook-section {
+    margin-bottom: 25px;
+}
+
+.orderbook-section h4 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #ddd;
+}
+
+.orderbook-comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.orderbook-before,
+.orderbook-after {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+}
+
+.orderbook-before h5,
+.orderbook-after h5 {
+    margin: 0 0 10px 0;
+    color: #2c3e50;
+    text-align: center;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #ddd;
+}
+
+.orderbook-data {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.bid-ask-spread,
+.depth-info {
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.price-timeline {
+    margin-bottom: 25px;
+}
+
+.price-timeline h4 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #ddd;
+}
+
+.timeline-container {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #f8f9fa;
+}
+
+.no-data {
+    text-align: center;
+    color: #7f8c8d;
+    font-style: italic;
+    padding: 20px;
+}
+
+.theory-explanation {
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    border-left: 4px solid #3498db;
+}
+
+.theory-explanation h4 {
+    color: #2c3e50;
+    margin: 0 0 15px 0;
+}
+
+.theory-explanation p {
+    margin: 10px 0;
+    line-height: 1.5;
+}
+
+.timeline-price {
+    font-size: 12px;
+    color: #555;
+    margin-top: 5px;
+}
+
+/* Settlement Analysis Summary */
+.analysis-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    margin: 15px 0;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+}
+
+.analysis-summary-item {
+    text-align: center;
+    padding: 10px;
+    background-color: white;
+    border-radius: 4px;
+}
+
+.analysis-summary-item .value {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+.analysis-summary-item .label {
+    font-size: 0.9em;
+    color: #7f8c8d;
+    margin-top: 5px;
+}
