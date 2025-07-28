@@ -409,6 +409,9 @@ function renderSessionDetails(session) {
     `
 }
 
+// Global chart instance
+let currentChart = null
+
 // Generate price chart
 async function generateChart() {
     const selectedSymbol = chartSymbolSelect.value
@@ -427,68 +430,369 @@ async function generateChart() {
         }
 
         const chartData = await response.json()
-        renderChart(chartData, selectedSymbol)
+        renderCandlestickChart(chartData, selectedSymbol)
 
     } catch (error) {
         console.error("Error generating chart:", error)
 
         // Show mock chart
-        renderMockChart(selectedSymbol)
+        renderMockCandlestickChart(selectedSymbol, selectedSession)
     }
 }
 
-// Render chart with real data
-function renderChart(data, symbol) {
-    const canvas = priceChart
-    const ctx = canvas.getContext("2d")
+// Render candlestick chart with real data
+function renderCandlestickChart(data, symbol) {
+    // Destroy existing chart
+    if (currentChart) {
+        currentChart.destroy()
+    }
 
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    const ctx = priceChart.getContext('2d')
 
-    // Chart implementation would go here
-    // For now, show placeholder
-    ctx.fillStyle = "#3498db"
-    ctx.font = "16px Arial"
-    ctx.textAlign = "center"
-    ctx.fillText(`Price Chart for ${symbol}`, canvas.width / 2, canvas.height / 2)
-    ctx.fillText("Chart implementation coming soon", canvas.width / 2, canvas.height / 2 + 30)
-}
+    // Prepare candlestick data
+    const candlestickData = data.snapshots
+        .filter(snapshot => snapshot.ohlc) // Only include snapshots with OHLC data
+        .map(snapshot => ({
+            x: snapshot.timestamp,
+            o: snapshot.ohlc.open,
+            h: snapshot.ohlc.high,
+            l: snapshot.ohlc.low,
+            c: snapshot.ohlc.close
+        }))
 
-// Render mock chart
-function renderMockChart(symbol) {
-    const canvas = priceChart
-    const ctx = canvas.getContext("2d")
+    // Prepare bid/ask line data
+    const bidData = data.snapshots.map(snapshot => ({
+        x: snapshot.timestamp,
+        y: snapshot.bidPrice
+    }))
 
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    const askData = data.snapshots.map(snapshot => ({
+        x: snapshot.timestamp,
+        y: snapshot.askPrice
+    }))
 
-    // Draw mock chart
-    ctx.strokeStyle = "#3498db"
-    ctx.lineWidth = 2
-    ctx.beginPath()
+    const markData = data.snapshots.map(snapshot => ({
+        x: snapshot.timestamp,
+        y: snapshot.markPrice
+    }))
 
-    const points = 50
-    const amplitude = 50
-    const centerY = canvas.height / 2
+    // Find settlement time
+    const settlementSnapshot = data.snapshots.find(s => s.type === 'settlement')
+    const settlementTime = settlementSnapshot ? settlementSnapshot.timestamp : null
 
-    for (let i = 0; i < points; i++) {
-        const x = (i / points) * canvas.width
-        const y = centerY + Math.sin(i * 0.2) * amplitude + (Math.random() - 0.5) * 20
-
-        if (i === 0) {
-            ctx.moveTo(x, y)
-        } else {
-            ctx.lineTo(x, y)
+    currentChart = new Chart(ctx, {
+        type: 'candlestick',
+        data: {
+            datasets: [
+                {
+                    label: 'OHLC',
+                    data: candlestickData,
+                    borderColor: '#2c3e50',
+                    backgroundColor: 'rgba(44, 62, 80, 0.1)',
+                    borderWidth: 1,
+                    order: 1
+                },
+                {
+                    label: 'Mark Price',
+                    type: 'line',
+                    data: markData,
+                    borderColor: '#3498db',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    order: 2
+                },
+                {
+                    label: 'Bid Price',
+                    type: 'line',
+                    data: bidData,
+                    borderColor: '#27ae60',
+                    backgroundColor: 'transparent',
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    order: 3
+                },
+                {
+                    label: 'Ask Price',
+                    type: 'line',
+                    data: askData,
+                    borderColor: '#e74c3c',
+                    backgroundColor: 'transparent',
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    order: 4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: `${symbol} - Price Movement During Settlement`,
+                    font: {
+                        size: 16,
+                        weight: 'bold'
+                    }
+                },
+                legend: {
+                    display: true,
+                    position: 'top'
+                }
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        displayFormats: {
+                            minute: 'HH:mm',
+                            hour: 'HH:mm'
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Time'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Price (USD)'
+                    },
+                    beginAtZero: false
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            }
         }
+    })
+
+    // Add settlement time annotation if available
+    if (settlementTime && currentChart.options.plugins.annotation) {
+        currentChart.options.plugins.annotation = {
+            annotations: {
+                settlementLine: {
+                    type: 'line',
+                    xMin: settlementTime,
+                    xMax: settlementTime,
+                    borderColor: '#f39c12',
+                    borderWidth: 3,
+                    borderDash: [5, 5],
+                    label: {
+                        content: 'Settlement',
+                        enabled: true,
+                        position: 'top'
+                    }
+                }
+            }
+        }
+        currentChart.update()
+    }
+}
+
+// Render mock candlestick chart
+function renderMockCandlestickChart(symbol, sessionId) {
+    // Destroy existing chart
+    if (currentChart) {
+        currentChart.destroy()
     }
 
-    ctx.stroke()
+    const ctx = priceChart.getContext('2d')
 
-    // Add labels
-    ctx.fillStyle = "#2c3e50"
-    ctx.font = "14px Arial"
-    ctx.textAlign = "center"
-    ctx.fillText(`${symbol} Price Movement During Settlement`, canvas.width / 2, 30)
+    // Generate mock OHLC data
+    const now = Date.now()
+    const mockData = []
+    let basePrice = 45000 // Starting price for BTC
+
+    if (symbol.includes('ETH')) basePrice = 2500
+    if (symbol.includes('SOL')) basePrice = 100
+
+    // Generate 30 data points over 5 minutes (10-second intervals)
+    for (let i = 0; i < 30; i++) {
+        const timestamp = now - (30 - i) * 10000 // 10 seconds apart
+        const volatility = 0.002 // 0.2% volatility
+
+        // Generate realistic OHLC data
+        const open = basePrice + (Math.random() - 0.5) * basePrice * volatility
+        const close = open + (Math.random() - 0.5) * basePrice * volatility
+        const high = Math.max(open, close) + Math.random() * basePrice * volatility * 0.5
+        const low = Math.min(open, close) - Math.random() * basePrice * volatility * 0.5
+
+        mockData.push({
+            x: timestamp,
+            o: open,
+            h: high,
+            l: low,
+            c: close
+        })
+
+        basePrice = close // Use close as next base price
+    }
+
+    // Generate bid/ask/mark data
+    const bidData = mockData.map(candle => ({
+        x: candle.x,
+        y: candle.c - (candle.c * 0.0001) // Bid slightly below close
+    }))
+
+    const askData = mockData.map(candle => ({
+        x: candle.x,
+        y: candle.c + (candle.c * 0.0001) // Ask slightly above close
+    }))
+
+    const markData = mockData.map(candle => ({
+        x: candle.x,
+        y: candle.c // Mark price equals close
+    }))
+
+    // Settlement time (middle of the data)
+    const settlementTime = now - 15 * 10000
+
+    currentChart = new Chart(ctx, {
+        type: 'candlestick',
+        data: {
+            datasets: [
+                {
+                    label: 'OHLC',
+                    data: mockData,
+                    borderColor: function (context) {
+                        const candle = context.parsed
+                        return candle.c >= candle.o ? '#27ae60' : '#e74c3c'
+                    },
+                    backgroundColor: function (context) {
+                        const candle = context.parsed
+                        return candle.c >= candle.o ? 'rgba(39, 174, 96, 0.8)' : 'rgba(231, 76, 60, 0.8)'
+                    },
+                    borderWidth: 1,
+                    order: 1
+                },
+                {
+                    label: 'Mark Price',
+                    type: 'line',
+                    data: markData,
+                    borderColor: '#3498db',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    order: 2
+                },
+                {
+                    label: 'Bid Price',
+                    type: 'line',
+                    data: bidData,
+                    borderColor: '#27ae60',
+                    backgroundColor: 'transparent',
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    order: 3
+                },
+                {
+                    label: 'Ask Price',
+                    type: 'line',
+                    data: askData,
+                    borderColor: '#e74c3c',
+                    backgroundColor: 'transparent',
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    order: 4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: `${symbol} - Settlement Price Movement (Mock Data)`,
+                    font: {
+                        size: 16,
+                        weight: 'bold'
+                    }
+                },
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                tooltip: {
+                    callbacks: {
+                        title: function (context) {
+                            return new Date(context[0].parsed.x).toLocaleTimeString()
+                        },
+                        label: function (context) {
+                            const datasetLabel = context.dataset.label
+                            if (datasetLabel === 'OHLC') {
+                                const ohlc = context.parsed
+                                return [
+                                    `Open: $${ohlc.o.toFixed(2)}`,
+                                    `High: $${ohlc.h.toFixed(2)}`,
+                                    `Low: $${ohlc.l.toFixed(2)}`,
+                                    `Close: $${ohlc.c.toFixed(2)}`
+                                ]
+                            } else {
+                                return `${datasetLabel}: $${context.parsed.y.toFixed(2)}`
+                            }
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        displayFormats: {
+                            minute: 'HH:mm:ss',
+                            second: 'HH:mm:ss'
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Time'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Price (USD)'
+                    },
+                    beginAtZero: false
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            }
+        }
+    })
+
+    // Add settlement time line
+    setTimeout(() => {
+        if (currentChart) {
+            currentChart.options.plugins.annotation = {
+                annotations: {
+                    settlementLine: {
+                        type: 'line',
+                        xMin: settlementTime,
+                        xMax: settlementTime,
+                        borderColor: '#f39c12',
+                        borderWidth: 3,
+                        borderDash: [5, 5],
+                        label: {
+                            content: 'Settlement Time',
+                            enabled: true,
+                            position: 'top',
+                            backgroundColor: '#f39c12',
+                            color: 'white'
+                        }
+                    }
+                }
+            }
+            currentChart.update()
+        }
+    }, 100)
 }
 
 // Utility functions

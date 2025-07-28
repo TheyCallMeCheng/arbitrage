@@ -58,11 +58,22 @@
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     text-align: center;
+    min-height: 450px;
 }
 
 #priceChart {
     max-width: 100%;
-    height: auto;
+    height: 400px !important;
+    width: 100% !important;
+}
+
+.chart-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 400px;
+    color: #7f8c8d;
+    font-size: 16px;
 }
 
 /* Theory Test Results */
