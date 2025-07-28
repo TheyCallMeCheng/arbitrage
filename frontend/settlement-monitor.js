@@ -487,9 +487,19 @@ function renderCandlestickChart(data, symbol) {
                 {
                     label: 'OHLC',
                     data: candlestickData,
-                    borderColor: '#2c3e50',
-                    backgroundColor: 'rgba(44, 62, 80, 0.1)',
-                    borderWidth: 1,
+                    borderColor: {
+                        up: '#26a69a',
+                        down: '#ef5350',
+                        unchanged: '#999'
+                    },
+                    backgroundColor: {
+                        up: 'rgba(38, 166, 154, 0.8)',
+                        down: 'rgba(239, 83, 80, 0.8)',
+                        unchanged: 'rgba(153, 153, 153, 0.8)'
+                    },
+                    borderWidth: 2,
+                    candleWidth: 0.8,
+                    wickWidth: 1,
                     order: 1
                 },
                 {
@@ -658,15 +668,19 @@ function renderMockCandlestickChart(symbol, sessionId) {
                 {
                     label: 'OHLC',
                     data: mockData,
-                    borderColor: function (context) {
-                        const candle = context.parsed
-                        return candle.c >= candle.o ? '#27ae60' : '#e74c3c'
+                    borderColor: {
+                        up: '#26a69a',
+                        down: '#ef5350',
+                        unchanged: '#999'
                     },
-                    backgroundColor: function (context) {
-                        const candle = context.parsed
-                        return candle.c >= candle.o ? 'rgba(39, 174, 96, 0.8)' : 'rgba(231, 76, 60, 0.8)'
+                    backgroundColor: {
+                        up: 'rgba(38, 166, 154, 0.8)',
+                        down: 'rgba(239, 83, 80, 0.8)',
+                        unchanged: 'rgba(153, 153, 153, 0.8)'
                     },
-                    borderWidth: 1,
+                    borderWidth: 2,
+                    candleWidth: 0.8,
+                    wickWidth: 1,
                     order: 1
                 },
                 {

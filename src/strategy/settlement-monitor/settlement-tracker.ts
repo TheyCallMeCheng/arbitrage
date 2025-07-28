@@ -122,7 +122,7 @@ export class SettlementTracker {
     /**
      * Start automatic schedule updates
      */
-    startScheduleUpdates(intervalMinutes: number = 30): void {
+    startScheduleUpdates(intervalMinutes: number = 5): void {
         if (this.updateInterval) {
             clearInterval(this.updateInterval);
         }

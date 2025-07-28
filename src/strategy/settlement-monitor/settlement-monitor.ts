@@ -43,7 +43,7 @@ export class SettlementMonitor {
             this.dataStorage.initialize();
 
             // Start settlement tracking
-            this.settlementTracker.startScheduleUpdates(30); // Update every 30 minutes
+            this.settlementTracker.startScheduleUpdates(5); // Update every 5 minutes
 
             console.log("✅ Settlement Monitor initialized successfully");
             console.log(`📊 Configuration:`, {
