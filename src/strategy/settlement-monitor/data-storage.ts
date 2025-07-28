@@ -97,6 +97,7 @@ export class SettlementDataStorage {
                 liquidity_change_percent REAL NOT NULL,
                 time_to_max_move INTEGER NOT NULL,
                 max_price_move REAL NOT NULL,
+                theory_test TEXT NOT NULL,
                 created_at INTEGER NOT NULL,
                 FOREIGN KEY (session_id) REFERENCES settlement_sessions(id)
             )
@@ -104,6 +105,9 @@ export class SettlementDataStorage {
 
         // Add OHLC columns if they don't exist (migration for existing databases)
         this.addOHLCColumnsIfNeeded();
+
+        // Add theory_test column if it doesn't exist (migration for existing databases)
+        this.addTheoryTestColumnIfNeeded();
 
         // Create indexes for better query performance
         this.db.exec(`
@@ -141,6 +145,27 @@ export class SettlementDataStorage {
             `);
 
             console.log("✅ OHLC columns added successfully");
+        }
+    }
+
+    /**
+     * Add theory_test column to existing settlement_analysis table if it doesn't exist
+     */
+    private addTheoryTestColumnIfNeeded(): void {
+        if (!this.db) throw new Error("Database not initialized");
+
+        try {
+            // Check if theory_test column exists by trying to select it
+            this.db.prepare("SELECT theory_test FROM settlement_analysis LIMIT 1").get();
+        } catch (error) {
+            // Column doesn't exist, add it
+            console.log("🔄 Adding theory_test column to existing database...");
+
+            this.db.exec(`
+                ALTER TABLE settlement_analysis ADD COLUMN theory_test TEXT DEFAULT 'FAIL';
+            `);
+
+            console.log("✅ theory_test column added successfully");
         }
     }
 
@@ -251,8 +276,8 @@ export class SettlementDataStorage {
         const stmt = this.db.prepare(`
             INSERT INTO settlement_analysis 
             (session_id, symbol, funding_rate, price_change_percent, volume_change_percent, 
-             spread_change_percent, liquidity_change_percent, time_to_max_move, max_price_move, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             spread_change_percent, liquidity_change_percent, time_to_max_move, max_price_move, theory_test, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         const now = Date.now();
@@ -268,6 +293,7 @@ export class SettlementDataStorage {
                     analysis.liquidityChangePercent,
                     analysis.timeToMaxMove,
                     analysis.maxPriceMove,
+                    analysis.theoryTest,
                     now,
                 );
             }
@@ -366,6 +392,7 @@ export class SettlementDataStorage {
             liquidityChangePercent: row.liquidity_change_percent,
             timeToMaxMove: row.time_to_max_move,
             maxPriceMove: row.max_price_move,
+            theoryTest: row.theory_test || "FAIL", // Default to FAIL for existing records
         }));
     }
 

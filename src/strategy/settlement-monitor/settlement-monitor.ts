@@ -311,20 +311,36 @@ export class SettlementMonitor {
 
             if (symbolSnapshots.length < 2) continue;
 
-            // Find pre and post settlement snapshots
+            // Find snapshots by type
             const preSnapshots = symbolSnapshots.filter((s) => s.snapshotType === "pre");
+            const settlementSnapshots = symbolSnapshots.filter((s) => s.snapshotType === "settlement");
             const postSnapshots = symbolSnapshots.filter((s) => s.snapshotType === "post");
 
-            if (preSnapshots.length === 0 || postSnapshots.length === 0) continue;
+            if (preSnapshots.length === 0) continue;
 
-            const baselineSnapshot = preSnapshots[preSnapshots.length - 1]; // Last pre snapshot
-            const finalSnapshot = postSnapshots[postSnapshots.length - 1]; // Last post snapshot
+            // Use the FIRST pre-settlement snapshot as baseline (closest to the candle before settlement)
+            // This represents the price before bots start reacting to the upcoming settlement
+            const baselineSnapshot = preSnapshots[0];
 
-            // Calculate changes
+            // For final comparison, use the last post snapshot if available, otherwise last settlement snapshot
+            const finalSnapshot =
+                postSnapshots.length > 0
+                    ? postSnapshots[postSnapshots.length - 1]
+                    : settlementSnapshots.length > 0
+                    ? settlementSnapshots[settlementSnapshots.length - 1]
+                    : preSnapshots[preSnapshots.length - 1];
+
+            // Calculate changes from the earliest baseline
             const changes = this.priceCollector.calculatePriceChange(baselineSnapshot, finalSnapshot);
 
-            // Find maximum price movement
-            const maxMovement = this.priceCollector.findMaxPriceMovement(postSnapshots, baselineSnapshot);
+            // Find maximum price movement across ALL snapshots (settlement + post)
+            const allRelevantSnapshots = [...settlementSnapshots, ...postSnapshots];
+            const maxMovement = this.priceCollector.findMaxPriceMovement(allRelevantSnapshots, baselineSnapshot);
+
+            // Calculate the theory test result
+            const fundingRateAbs = Math.abs(this.currentSession.fundingRatesAtSelection[symbol] * 100);
+            const maxPriceMoveAbs = Math.abs(maxMovement.maxPriceMove);
+            const theoryTest = maxPriceMoveAbs > fundingRateAbs ? "PASS" : "FAIL";
 
             const analysis: SettlementAnalysis = {
                 symbol,
@@ -335,6 +351,7 @@ export class SettlementMonitor {
                 liquidityChangePercent: changes.liquidityChangePercent,
                 timeToMaxMove: maxMovement.timeToMaxMove,
                 maxPriceMove: maxMovement.maxPriceMove,
+                theoryTest,
             };
 
             analyses.push(analysis);

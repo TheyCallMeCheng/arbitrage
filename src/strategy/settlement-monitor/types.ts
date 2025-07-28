@@ -75,4 +75,5 @@ export interface SettlementAnalysis {
     liquidityChangePercent: number;
     timeToMaxMove: number; // seconds after settlement when max price move occurred
     maxPriceMove: number; // maximum price movement during monitoring period
+    theoryTest: "PASS" | "FAIL"; // whether price movement exceeded funding rate
 }
