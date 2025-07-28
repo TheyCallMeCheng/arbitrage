@@ -12,7 +12,8 @@
         "clean": "rimraf dist",
         "test_fundingRates_db": "npx ts-node src/examples/test-funding-rates.ts",
         "arbitrage": "ts-node src/strategy/funding-rate-arbitrage.ts",
-        "arbitrage-monitor": "ts-node src/strategy/monitor.ts"
+        "arbitrage-monitor": "ts-node src/strategy/monitor.ts",
+        "settlement-monitor": "ts-node src/examples/settlement-monitor-example.ts"
     },
     "keywords": [
         "arbitrage",
