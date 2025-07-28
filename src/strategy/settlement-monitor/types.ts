@@ -61,7 +61,7 @@ export interface SettlementMonitorConfig {
     postMonitoringMinutes: number; // How many minutes after settlement to monitor (default: 5)
     snapshotIntervalSeconds: number; // How often to take snapshots during intensive monitoring (default: 10)
     fundingRateUpdateIntervalSeconds: number; // How often to update funding rates during pre-monitoring (default: 30)
-    top3SelectionMinutes: number; // How many minutes before settlement to select final top 3 (default: 1)
+    top3SelectionMinutes: number; // How many minutes before settlement to select final top 3 (default: 5)
     orderbookDepth: number; // Number of orderbook levels to capture (default: 10)
     timeOffsetMinutes?: number; // For testing - offset the current time (default: 0)
 }

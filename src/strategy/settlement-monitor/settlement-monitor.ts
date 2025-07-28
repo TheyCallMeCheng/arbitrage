@@ -20,7 +20,7 @@ export class SettlementMonitor {
             postMonitoringMinutes: 5,
             snapshotIntervalSeconds: 10,
             fundingRateUpdateIntervalSeconds: 30,
-            top3SelectionMinutes: 1,
+            top3SelectionMinutes: 5,
             orderbookDepth: 10,
             timeOffsetMinutes: 0,
             ...config,

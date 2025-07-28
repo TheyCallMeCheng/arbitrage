@@ -62,7 +62,7 @@ interface SettlementMonitorConfig {
     postMonitoringMinutes: number;       // Continue monitoring N minutes after settlement (default: 5)
     snapshotIntervalSeconds: number;     // Snapshot frequency during intensive monitoring (default: 10)
     fundingRateUpdateIntervalSeconds: number; // How often to update funding rates (default: 30)
-    top3SelectionMinutes: number;        // When to select final top 3 symbols (default: 1)
+    top3SelectionMinutes: number;        // When to select final top 3 symbols (default: 5)
     orderbookDepth: number;             // Number of orderbook levels to capture (default: 10)
     timeOffsetMinutes?: number;         // For testing - time offset (default: 0)
 }

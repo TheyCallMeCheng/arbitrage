@@ -318,6 +318,7 @@ function renderAnalysisTable(analyses) {
             <td class="${theoryTestClass}">${analysis.theoryTest}</td>
             <td>
                 <button class="action-btn" onclick="showAnalysisDetails('${analysis.sessionId}', '${analysis.symbol}')">Details</button>
+                <button class="action-btn chart-btn" onclick="showChart('${analysis.sessionId}', '${analysis.symbol}')">Chart</button>
             </td>
         `
 
@@ -420,6 +421,12 @@ async function generateChart() {
     if (!selectedSymbol || !selectedSession) {
         alert("Please select both a symbol and a session")
         return
+    }
+
+    // Find and show the analysis data summary
+    const analysisItem = analysisData.find(a => a.sessionId === selectedSession && a.symbol === selectedSymbol)
+    if (analysisItem) {
+        showChartDataSummary(analysisItem)
     }
 
     try {
@@ -669,17 +676,17 @@ function renderMockCandlestickChart(symbol, sessionId) {
                     label: 'OHLC',
                     data: mockData,
                     borderColor: {
-                        up: '#26a69a',
-                        down: '#ef5350',
+                        up: '#00C851',
+                        down: '#ff4444',
                         unchanged: '#999'
                     },
                     backgroundColor: {
-                        up: 'rgba(38, 166, 154, 0.8)',
-                        down: 'rgba(239, 83, 80, 0.8)',
-                        unchanged: 'rgba(153, 153, 153, 0.8)'
+                        up: '#00C851',
+                        down: '#ff4444',
+                        unchanged: '#999'
                     },
-                    borderWidth: 2,
-                    candleWidth: 0.8,
+                    borderWidth: 1,
+                    candleWidth: 0.6,
                     wickWidth: 1,
                     order: 1
                 },
@@ -1120,6 +1127,86 @@ function formatTime(timestamp) {
     return new Date(timestamp).toLocaleTimeString()
 }
 
+// Show chart for specific analysis
+function showChart(sessionId, symbol) {
+    // Set the chart selectors to the specific session and symbol
+    chartSessionSelect.value = sessionId
+    chartSymbolSelect.value = symbol
+
+    // Find the analysis data for this session and symbol
+    const analysisItem = analysisData.find(a => a.sessionId === sessionId && a.symbol === symbol)
+
+    // Show the data summary
+    if (analysisItem) {
+        showChartDataSummary(analysisItem)
+    }
+
+    // Scroll to the chart section
+    document.getElementById('chartContainer').scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+    })
+
+    // Generate the chart automatically
+    setTimeout(() => {
+        generateChart()
+    }, 500) // Small delay to ensure smooth scrolling completes
+}
+
+// Show data summary above the chart
+function showChartDataSummary(analysis) {
+    const summaryContainer = document.getElementById('chartDataSummary')
+    const summaryGrid = document.getElementById('chartSummaryGrid')
+
+    const fundingRateClass = analysis.fundingRate > 0 ? 'positive' : analysis.fundingRate < 0 ? 'negative' : ''
+    const priceChangeClass = analysis.priceChangePercent > 0 ? 'positive' : analysis.priceChangePercent < 0 ? 'negative' : ''
+    const maxMoveClass = analysis.maxPriceMove > 0 ? 'positive' : analysis.maxPriceMove < 0 ? 'negative' : ''
+    const theoryClass = analysis.theoryTest === 'PASS' ? 'theory-pass' : 'theory-fail'
+
+    summaryGrid.innerHTML = `
+        <div class="chart-summary-item">
+            <div class="label">Symbol</div>
+            <div class="value">${analysis.symbol}</div>
+        </div>
+        <div class="chart-summary-item">
+            <div class="label">Settlement Time</div>
+            <div class="value">${formatDateTimeShort(analysis.settlementTime)}</div>
+        </div>
+        <div class="chart-summary-item">
+            <div class="label">Funding Rate</div>
+            <div class="value ${fundingRateClass}">${(analysis.fundingRate * 100).toFixed(4)}%</div>
+        </div>
+        <div class="chart-summary-item">
+            <div class="label">Price Change</div>
+            <div class="value ${priceChangeClass}">${analysis.priceChangePercent.toFixed(2)}%</div>
+        </div>
+        <div class="chart-summary-item">
+            <div class="label">Max Price Move</div>
+            <div class="value ${maxMoveClass}">${analysis.maxPriceMove.toFixed(2)}%</div>
+        </div>
+        <div class="chart-summary-item">
+            <div class="label">Time to Max Move</div>
+            <div class="value">${analysis.timeToMaxMove}s</div>
+        </div>
+        <div class="chart-summary-item">
+            <div class="label">Volume Change</div>
+            <div class="value">${analysis.volumeChangePercent.toFixed(1)}%</div>
+        </div>
+        <div class="chart-summary-item">
+            <div class="label">Spread Change</div>
+            <div class="value">${analysis.spreadChangePercent.toFixed(1)}%</div>
+        </div>
+        <div class="chart-summary-item">
+            <div class="label">Theory Test</div>
+            <div class="value ${theoryClass}">${analysis.theoryTest}</div>
+        </div>
+    `
+
+    // Show the summary
+    summaryContainer.style.display = 'block'
+}
+
 // Make functions globally available
 window.showSessionDetails = showSessionDetails
 window.showAnalysisDetails = showAnalysisDetails
+window.showChart = showChart

@@ -9,7 +9,7 @@ async function runSettlementMonitor() {
         preMonitoringMinutes: 10, // Start monitoring 10 minutes before settlement
         postMonitoringMinutes: 5, // Continue monitoring 5 minutes after settlement
         snapshotIntervalSeconds: 10, // Take snapshots every 10 seconds during intensive monitoring
-        top3SelectionMinutes: 1, // Select final top 3 symbols 1 minute before settlement
+        top3SelectionMinutes: 5, // Select final top 3 symbols 5 minutes before settlement
         orderbookDepth: 10, // Capture top 10 orderbook levels
         timeOffsetMinutes: 0, // No time offset (for testing, you could set this to simulate different times)
     });
