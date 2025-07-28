@@ -43,7 +43,7 @@ export class SettlementMonitor {
             this.dataStorage.initialize();
 
             // Start settlement tracking
-            this.settlementTracker.startScheduleUpdates(5); // Update every 5 minutes
+            this.settlementTracker.startScheduleUpdates(1); // Update every 1 minute
 
             console.log("✅ Settlement Monitor initialized successfully");
             console.log(`📊 Configuration:`, {
@@ -162,8 +162,8 @@ export class SettlementMonitor {
         try {
             console.log("🔍 Selecting top 3 symbols by funding rate...");
 
-            // Get top 3 symbols by absolute funding rate
-            const top3Symbols = this.settlementTracker.getTopFundingRatesForSettlement(settlementTime, 3);
+            // Get top 3 symbols by absolute funding rate (now async with validation)
+            const top3Symbols = await this.settlementTracker.getTopFundingRatesForSettlement(settlementTime, 3);
 
             if (top3Symbols.length === 0) {
                 console.log("⚠️ No symbols found for intensive monitoring");
@@ -412,15 +412,17 @@ export class SettlementMonitor {
     /**
      * Get top funding rates for the next settlement
      */
-    getTopFundingRatesForNextSettlement(limit: number = 3): Array<{
-        symbol: string;
-        fundingRate: number;
-        nextFundingTime: number;
-    }> {
+    async getTopFundingRatesForNextSettlement(limit: number = 3): Promise<
+        Array<{
+            symbol: string;
+            fundingRate: number;
+            nextFundingTime: number;
+        }>
+    > {
         const nextSettlementTime = this.settlementTracker.getNextSettlementTime();
         if (!nextSettlementTime) return [];
 
-        return this.settlementTracker.getTopFundingRatesForSettlement(nextSettlementTime, limit);
+        return await this.settlementTracker.getTopFundingRatesForSettlement(nextSettlementTime, limit);
     }
 
     /**

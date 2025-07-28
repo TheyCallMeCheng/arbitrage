@@ -22,7 +22,7 @@ async function runSettlementMonitor() {
         monitor.start();
 
         // Log status every 30 seconds
-        const statusInterval = setInterval(() => {
+        const statusInterval = setInterval(async () => {
             const status = monitor.getStatus();
             const stats = monitor.getStats();
 
@@ -45,14 +45,23 @@ async function runSettlementMonitor() {
 
             // Show current top 3 highest funding rates for next settlement
             if (status.nextSettlement) {
-                const top3 = monitor.getTopFundingRatesForNextSettlement(3);
-                if (top3.length > 0) {
-                    console.log("\n🔥 Current Top 3 Highest Funding Rates:");
-                    top3.forEach((item, index) => {
-                        const rate = (item.fundingRate * 100).toFixed(4);
-                        const timeToSettlement = ((item.nextFundingTime - Date.now()) / (1000 * 60)).toFixed(1);
-                        console.log(`   ${index + 1}. ${item.symbol}: ${rate}% (in ${timeToSettlement} min)`);
-                    });
+                try {
+                    const top3 = await monitor.getTopFundingRatesForNextSettlement(3);
+                    if (top3.length > 0) {
+                        console.log("\n🔥 Current Top 3 Highest Funding Rates:");
+                        top3.forEach(
+                            (item: { symbol: string; fundingRate: number; nextFundingTime: number }, index: number) => {
+                                const rate = (item.fundingRate * 100).toFixed(4);
+                                const timeToSettlement = ((item.nextFundingTime - Date.now()) / (1000 * 60)).toFixed(1);
+                                console.log(`   ${index + 1}. ${item.symbol}: ${rate}% (in ${timeToSettlement} min)`);
+                            },
+                        );
+                    }
+                } catch (error) {
+                    console.log(
+                        "\n⚠️ Could not fetch top funding rates:",
+                        error instanceof Error ? error.message : String(error),
+                    );
                 }
             }
 

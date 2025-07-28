@@ -35,27 +35,68 @@ export class SettlementTracker {
 
             const currentTime = this.getCurrentTime();
             let updatedCount = 0;
+            let validatedCount = 0;
+            let discrepancyCount = 0;
 
             for (const item of result.data) {
                 if (item.success && item.timestamp > 0) {
-                    // Calculate funding interval based on next funding time
-                    const interval = this.calculateFundingInterval(item.timestamp);
+                    // Validate against existing data
+                    const existingSchedule = this.settlementSchedule.get(item.symbol);
+                    let shouldUpdate = true;
 
-                    const schedule: SettlementSchedule = {
-                        symbol: item.symbol,
-                        nextFundingTime: item.timestamp,
-                        fundingRate: item.rate,
-                        interval,
-                        lastUpdated: currentTime,
-                    };
+                    if (existingSchedule) {
+                        // Check for significant funding rate changes (>0.01% difference)
+                        const rateDifference = Math.abs(existingSchedule.fundingRate - item.rate);
+                        const significantChange = rateDifference > 0.0001; // 0.01%
 
-                    this.settlementSchedule.set(item.symbol, schedule);
-                    updatedCount++;
+                        // Check for settlement time changes
+                        const timeDifference = Math.abs(existingSchedule.nextFundingTime - item.timestamp);
+                        const timeChanged = timeDifference > 60000; // More than 1 minute difference
+
+                        if (significantChange || timeChanged) {
+                            console.log(
+                                `🔄 ${item.symbol}: Rate ${(existingSchedule.fundingRate * 100).toFixed(4)}% → ${(
+                                    item.rate * 100
+                                ).toFixed(4)}%`,
+                            );
+                            discrepancyCount++;
+                        }
+
+                        // Only update if data is newer than 30 seconds old
+                        const dataAge = currentTime - existingSchedule.lastUpdated;
+                        if (dataAge < 30000 && !significantChange && !timeChanged) {
+                            shouldUpdate = false; // Skip update if data is fresh and unchanged
+                        }
+
+                        validatedCount++;
+                    }
+
+                    if (shouldUpdate) {
+                        // Calculate funding interval based on next funding time
+                        const interval = this.calculateFundingInterval(item.timestamp);
+
+                        const schedule: SettlementSchedule = {
+                            symbol: item.symbol,
+                            nextFundingTime: item.timestamp,
+                            fundingRate: item.rate,
+                            interval,
+                            lastUpdated: currentTime,
+                        };
+
+                        this.settlementSchedule.set(item.symbol, schedule);
+                        updatedCount++;
+                    }
                 }
             }
 
-            console.log(`✅ Updated settlement schedule for ${updatedCount} symbols`);
-            this.logUpcomingSettlements();
+            console.log(
+                `✅ Updated ${updatedCount} symbols, validated ${validatedCount}, found ${discrepancyCount} discrepancies`,
+            );
+
+            // Only log upcoming settlements if there were significant updates
+            if (updatedCount > 0 || discrepancyCount > 0) {
+                this.logUpcomingSettlements();
+            }
         } catch (error) {
             console.error("❌ Error updating settlement schedule:", error);
         }
@@ -113,10 +154,79 @@ export class SettlementTracker {
 
     /**
      * Get top N symbols by absolute funding rate for a specific settlement time
+     * Validates funding rates against live data before returning
      */
-    getTopFundingRatesForSettlement(settlementTime: number, topN: number = 3): SettlementSchedule[] {
+    async getTopFundingRatesForSettlement(settlementTime: number, topN: number = 3): Promise<SettlementSchedule[]> {
         const settlingSymbols = this.getSymbolsSettlingAt(settlementTime);
-        return settlingSymbols.sort((a, b) => Math.abs(b.fundingRate) - Math.abs(a.fundingRate)).slice(0, topN);
+
+        // Validate funding rates against live data for critical decisions
+        const validatedSymbols = await this.validateFundingRates(settlingSymbols);
+
+        return validatedSymbols.sort((a, b) => Math.abs(b.fundingRate) - Math.abs(a.fundingRate)).slice(0, topN);
+    }
+
+    /**
+     * Validate funding rates against live Bybit data
+     */
+    private async validateFundingRates(symbols: SettlementSchedule[]): Promise<SettlementSchedule[]> {
+        if (symbols.length === 0) return symbols;
+
+        try {
+            console.log(`🔍 Validating funding rates for ${symbols.length} symbols against live Bybit data...`);
+
+            const symbolNames = symbols.map((s) => s.symbol);
+            const liveData = await this.bybitFeed.getFundingRatesFor(symbolNames);
+
+            const validatedSymbols: SettlementSchedule[] = [];
+            let discrepancyCount = 0;
+
+            for (const symbol of symbols) {
+                const liveItem = liveData.data.find((item) => item.symbol === symbol.symbol && item.success);
+
+                if (liveItem) {
+                    const rateDifference = Math.abs(symbol.fundingRate - liveItem.rate);
+                    const significantDiscrepancy = rateDifference > 0.0001; // 0.01%
+
+                    if (significantDiscrepancy) {
+                        console.log(
+                            `⚠️ ${symbol.symbol}: Stored rate ${(symbol.fundingRate * 100).toFixed(4)}% vs Live rate ${(
+                                liveItem.rate * 100
+                            ).toFixed(4)}%`,
+                        );
+                        discrepancyCount++;
+
+                        // Use live data for critical decisions
+                        const updatedSymbol: SettlementSchedule = {
+                            ...symbol,
+                            fundingRate: liveItem.rate,
+                            nextFundingTime: liveItem.timestamp,
+                            lastUpdated: Date.now(),
+                        };
+
+                        // Update our cache with live data
+                        this.settlementSchedule.set(symbol.symbol, updatedSymbol);
+                        validatedSymbols.push(updatedSymbol);
+                    } else {
+                        validatedSymbols.push(symbol);
+                    }
+                } else {
+                    console.warn(`⚠️ Could not validate ${symbol.symbol} against live data, using cached data`);
+                    validatedSymbols.push(symbol);
+                }
+            }
+
+            if (discrepancyCount > 0) {
+                console.log(`🔄 Updated ${discrepancyCount} symbols with live funding rate data`);
+            } else {
+                console.log(`✅ All funding rates validated - no significant discrepancies found`);
+            }
+
+            return validatedSymbols;
+        } catch (error) {
+            console.error("❌ Error validating funding rates against live data:", error);
+            console.log("📋 Using cached funding rate data");
+            return symbols;
+        }
     }
 
     /**
