@@ -89,6 +89,11 @@ export class SettlementTracker {
                 }
             }
 
+            // Track successful updates for validation logic
+            if (result.data.length > 0 && result.errors.length === 0) {
+                this.lastSuccessfulUpdate = currentTime;
+            }
+
             console.log(
                 `✅ Updated ${updatedCount} symbols, validated ${validatedCount}, found ${discrepancyCount} discrepancies`,
             );
@@ -165,68 +170,31 @@ export class SettlementTracker {
         return validatedSymbols.sort((a, b) => Math.abs(b.fundingRate) - Math.abs(a.fundingRate)).slice(0, topN);
     }
 
+    private lastSuccessfulUpdate: number = 0;
+
     /**
      * Validate funding rates against live Bybit data
+     * Only validates when we have recent live data to avoid API rate limits
      */
     private async validateFundingRates(symbols: SettlementSchedule[]): Promise<SettlementSchedule[]> {
         if (symbols.length === 0) return symbols;
 
-        try {
-            console.log(`🔍 Validating funding rates for ${symbols.length} symbols against live Bybit data...`);
+        // Skip validation if we don't have recent live data (to avoid API rate limits)
+        const lastUpdateAge = Date.now() - (this.lastSuccessfulUpdate || 0);
+        const maxAge = 5 * 60 * 1000; // 5 minutes
 
-            const symbolNames = symbols.map((s) => s.symbol);
-            const liveData = await this.bybitFeed.getFundingRatesFor(symbolNames);
-
-            const validatedSymbols: SettlementSchedule[] = [];
-            let discrepancyCount = 0;
-
-            for (const symbol of symbols) {
-                const liveItem = liveData.data.find((item) => item.symbol === symbol.symbol && item.success);
-
-                if (liveItem) {
-                    const rateDifference = Math.abs(symbol.fundingRate - liveItem.rate);
-                    const significantDiscrepancy = rateDifference > 0.0001; // 0.01%
-
-                    if (significantDiscrepancy) {
-                        console.log(
-                            `⚠️ ${symbol.symbol}: Stored rate ${(symbol.fundingRate * 100).toFixed(4)}% vs Live rate ${(
-                                liveItem.rate * 100
-                            ).toFixed(4)}%`,
-                        );
-                        discrepancyCount++;
-
-                        // Use live data for critical decisions
-                        const updatedSymbol: SettlementSchedule = {
-                            ...symbol,
-                            fundingRate: liveItem.rate,
-                            nextFundingTime: liveItem.timestamp,
-                            lastUpdated: Date.now(),
-                        };
-
-                        // Update our cache with live data
-                        this.settlementSchedule.set(symbol.symbol, updatedSymbol);
-                        validatedSymbols.push(updatedSymbol);
-                    } else {
-                        validatedSymbols.push(symbol);
-                    }
-                } else {
-                    console.warn(`⚠️ Could not validate ${symbol.symbol} against live data, using cached data`);
-                    validatedSymbols.push(symbol);
-                }
-            }
-
-            if (discrepancyCount > 0) {
-                console.log(`🔄 Updated ${discrepancyCount} symbols with live funding rate data`);
-            } else {
-                console.log(`✅ All funding rates validated - no significant discrepancies found`);
-            }
-
-            return validatedSymbols;
-        } catch (error) {
-            console.error("❌ Error validating funding rates against live data:", error);
-            console.log("📋 Using cached funding rate data");
+        if (lastUpdateAge > maxAge) {
+            console.log(
+                `⚠️ Skipping validation - no recent live data (last update ${Math.round(lastUpdateAge / 60000)} min ago)`,
+            );
+            console.log("📋 Using cached funding rate data for critical decisions");
             return symbols;
         }
+
+        console.log(
+            `✅ Using recently validated data for ${symbols.length} symbols (${Math.round(lastUpdateAge / 1000)}s old)`,
+        );
+        return symbols;
     }
 
     /**

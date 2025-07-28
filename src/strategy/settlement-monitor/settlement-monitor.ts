@@ -157,20 +157,27 @@ export class SettlementMonitor {
 
     /**
      * Select top 3 symbols and start intensive monitoring
+     * Only monitors symbols with funding rates > 0.01% (absolute value) at selection time
      */
     private async selectTop3AndStartIntensiveMonitoring(settlementTime: number): Promise<void> {
         try {
             console.log("🔍 Selecting top 3 symbols by funding rate...");
 
-            // Get top 3 symbols by absolute funding rate (now async with validation)
-            const top3Symbols = await this.settlementTracker.getTopFundingRatesForSettlement(settlementTime, 3);
+            // Get top symbols by absolute funding rate (get more to have options after filtering)
+            const allSymbols = await this.settlementTracker.getTopFundingRatesForSettlement(settlementTime, 50);
 
-            if (top3Symbols.length === 0) {
-                console.log("⚠️ No symbols found for intensive monitoring");
+            // Filter for significant funding rates (> 0.01% absolute) at selection time
+            const significantSymbols = allSymbols.filter((symbol) => Math.abs(symbol.fundingRate) > 0.0001); // 0.01%
+
+            if (significantSymbols.length === 0) {
+                console.log("⚠️ No symbols with funding rate > 0.01% found at selection time - skipping monitoring session");
                 return;
             }
 
-            console.log("🎯 Selected symbols for intensive monitoring:");
+            // Take top 3 from significant symbols
+            const top3Symbols = significantSymbols.slice(0, 3);
+
+            console.log(`🎯 Selected ${top3Symbols.length} symbols with funding rate > 0.01% for intensive monitoring:`);
             top3Symbols.forEach((symbol, index) => {
                 console.log(`   ${index + 1}. ${symbol.symbol}: ${(symbol.fundingRate * 100).toFixed(4)}%`);
             });
