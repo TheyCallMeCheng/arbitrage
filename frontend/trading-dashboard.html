@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Funding Rate Trading Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="trading-dashboard.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Funding Rate Trading Dashboard</h1>
+            <p>Live trading performance and position monitoring</p>
+            <nav class="nav-links">
+                <a href="index.html">Arbitrage Dashboard</a>
+                <a href="settlement-monitor.html">Settlement Monitor</a>
+                <a href="trading-dashboard.html" class="active">Trading Dashboard</a>
+            </nav>
+        </header>
+
+        <!-- Trading Status -->
+        <div class="trading-status">
+            <div class="status-card">
+                <h3>Trading Status</h3>
+                <div class="status-indicator" id="tradingStatus">
+                    <span class="status-dot offline"></span>
+                    <span class="status-text">Checking...</span>
+                </div>
+            </div>
+            <div class="status-card">
+                <h3>Next Settlement</h3>
+                <p id="nextSettlement">Loading...</p>
+            </div>
+            <div class="status-card">
+                <h3>Available Balance</h3>
+                <p id="availableBalance">$0.00</p>
+            </div>
+        </div>
+
+        <!-- Performance Summary -->
+        <div class="performance-summary">
+            <div class="perf-card">
+                <h3>Today's P&L</h3>
+                <p class="pnl-value" id="dailyPnl">$0.00</p>
+            </div>
+            <div class="perf-card">
+                <h3>Total Trades</h3>
+                <p id="totalTrades">0</p>
+            </div>
+            <div class="perf-card">
+                <h3>Win Rate</h3>
+                <p id="winRate">0%</p>
+            </div>
+            <div class="perf-card">
+                <h3>Active Positions</h3>
+                <p id="activePositions">0/3</p>
+            </div>
+        </div>
+
+        <!-- Risk Metrics -->
+        <div class="risk-section">
+            <h2>Risk Management</h2>
+            <div class="risk-metrics">
+                <div class="risk-card">
+                    <h4>Daily Stop Loss</h4>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="dailyLossProgress"></div>
+                    </div>
+                    <p id="dailyLossText">$0.00 / $10.00</p>
+                </div>
+                <div class="risk-card">
+                    <h4>Position Exposure</h4>
+                    <p id="totalExposure">$0</p>
+                </div>
+                <div class="risk-card">
+                    <h4>Portfolio Risk</h4>
+                    <p id="portfolioRisk">0.0%</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Positions -->
+        <div class="positions-section">
+            <h2>Active Positions</h2>
+            <div class="table-container">
+                <table id="positionsTable">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Side</th>
+                            <th>Size</th>
+                            <th>Entry Price</th>
+                            <th>Current Price</th>
+                            <th>P&L</th>
+                            <th>Duration</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="positionsTableBody">
+                        <tr>
+                            <td colspan="8" class="no-data">No active positions</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Trade History -->
+        <div class="history-section">
+            <h2>Recent Trades</h2>
+            <div class="table-container">
+                <table id="historyTable">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Symbol</th>
+                            <th>Side</th>
+                            <th>Size</th>
+                            <th>Entry</th>
+                            <th>Exit</th>
+                            <th>P&L</th>
+                            <th>Duration</th>
+                            <th>Exit Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <tr>
+                            <td colspan="9" class="no-data">No completed trades</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Trading Controls -->
+        <div class="controls-section">
+            <h2>Trading Controls</h2>
+            <div class="control-buttons">
+                <button id="startTradingBtn" class="btn btn-success">Start Trading</button>
+                <button id="stopTradingBtn" class="btn btn-danger">Stop Trading</button>
+                <button id="emergencyStopBtn" class="btn btn-emergency">Emergency Stop</button>
+                <button id="refreshBtn" class="btn btn-secondary">Refresh Data</button>
+            </div>
+            <div class="control-info">
+                <p><strong>Configuration:</strong></p>
+                <ul>
+                    <li>Position Size: $5 (Test Mode)</li>
+                    <li>Daily Stop Loss: $10</li>
+                    <li>Max Positions: 3</li>
+                    <li>Funding Rate Threshold: -0.1%</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Last Update -->
+        <div class="footer-info">
+            <p>Last updated: <span id="lastUpdate">Never</span></p>
+            <p>Auto-refresh: <span id="autoRefreshStatus">Enabled</span></p>
+        </div>
+    </div>
+
+    <script src="trading-dashboard.js"></script>
+</body>
+
+</html>
