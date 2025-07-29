@@ -258,7 +258,8 @@ export class BybitTradingClient {
     async getPositions(symbol?: string): Promise<BybitPosition[]> {
         try {
             const endpoint = "/v5/position/list";
-            const params = symbol ? `category=linear&symbol=${symbol}` : "category=linear";
+            // When getting all positions, we need to specify settleCoin=USDT for linear category
+            const params = symbol ? `category=linear&symbol=${symbol}` : "category=linear&settleCoin=USDT";
             const url = `${this.baseUrl}${endpoint}?${params}`;
 
             const response = await axios.get(url, {
