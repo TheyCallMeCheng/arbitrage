@@ -107,7 +107,7 @@ export class CrashRecoveryManager {
         console.log("🔄 Syncing with exchange positions...");
 
         try {
-            const exchangePositions = await this.tradingClient.getPositions();
+            const exchangePositions = await this.tradingClient.getPositions("USDT");
             const localPositions = this.positionManager.getAllPositions().filter((pos) => pos.status === "active");
 
             // Check for positions on exchange that we don't have locally
@@ -176,7 +176,7 @@ export class CrashRecoveryManager {
         console.log("🔍 Checking for pending orders...");
 
         try {
-            const openOrders = await this.tradingClient.getOpenOrders();
+            const openOrders = await this.tradingClient.getOpenOrders("USDT");
 
             if (openOrders.length === 0) {
                 console.log("✅ No pending orders found");

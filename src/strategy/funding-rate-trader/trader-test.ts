@@ -18,7 +18,7 @@ const TEST_CONFIG: TradingConfig = {
     maxDailyTrades: 5, // Max 5 trades per day for testing
 
     // Strategy Parameters
-    fundingRateThreshold: -0.001, // -0.1% funding rate threshold
+    fundingRateThreshold: -0.0001, // -0.01% funding rate threshold (lowered for testing)
     targetProfitPercent: 0.002, // 0.2% target profit
     maxPositionDuration: 10 * 60 * 1000, // 10 minutes
 
@@ -26,13 +26,13 @@ const TEST_CONFIG: TradingConfig = {
     minLiquidity: 500, // $500 minimum orderbook depth
     maxSlippage: 0.0005, // 0.05% maximum slippage
 
-    // Timing
-    orderPlacementTime: 59, // Place orders at XX:59
-    monitoringStart: 58, // Start monitoring at XX:58
+    // Timing - Orders are placed during the minute before settlement (XX:59)
+    orderPlacementTime: 59, // Legacy parameter (not used in new logic)
+    monitoringStart: 58, // Legacy parameter (not used in new logic)
 
     // Testing
-    testMode: true, // Enable test mode
-    testPositionSize: 5, // $5 positions for testing
+    testMode: true, // Enable test mode with small positions
+    testPositionSize: 100, // $100 positions for testing
 };
 
 class TraderTester {
@@ -132,7 +132,7 @@ class TraderTester {
      */
     async startLiveTrading(): Promise<void> {
         console.log("🎯 Starting live trading with test configuration...");
-        console.log("⚠️ Using $5 position sizes for safety");
+        console.log("💰 Using $100 position sizes");
         console.log("🛡️ Daily stop loss: $10");
         console.log("📊 Max positions: 3");
 

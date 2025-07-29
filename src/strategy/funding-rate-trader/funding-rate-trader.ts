@@ -174,21 +174,41 @@ export class FundingRateTrader {
             topFundingRates.forEach((item, index) => {
                 const rate = (item.fundingRate * 100).toFixed(4);
                 const rateColor = item.fundingRate < -0.001 ? "🟢" : item.fundingRate > 0.001 ? "🔴" : "🟡";
-                const tradeable = item.fundingRate < this.config.fundingRateThreshold ? "✅ TRADEABLE" : "❌ Skip";
+
+                // Check if funding rate is in tradeable range (-0.01% to -1%)
+                const inTradeableRange = item.fundingRate < this.config.fundingRateThreshold && item.fundingRate >= -0.01;
+                const tradeable = inTradeableRange ? "✅ TRADEABLE" : "❌ Skip";
+
+                // Add reason for skipping if not tradeable
+                let skipReason = "";
+                if (!inTradeableRange) {
+                    if (item.fundingRate >= this.config.fundingRateThreshold) {
+                        skipReason = " (rate too high)";
+                    } else if (item.fundingRate < -0.01) {
+                        skipReason = " (rate too negative, >1%)";
+                    }
+                }
 
                 console.log(`${index + 1}. ${item.symbol}`);
-                console.log(`   Rate: ${rateColor} ${rate}% | ${tradeable}`);
+                console.log(`   Rate: ${rateColor} ${rate}% | ${tradeable}${skipReason}`);
 
                 if (item.fundingRate < this.config.fundingRateThreshold) {
-                    const actualPositionSize = this.config.testMode ? this.config.testPositionSize : this.config.positionSize;
-                    const fundingCost = Math.abs(item.fundingRate) * actualPositionSize;
-                    const tradingFees = actualPositionSize * 0.0011 * 2; // 0.11% taker fee both ways
+                    // Always use the configured position size for cost calculations, not the test size
+                    const displayPositionSize = this.config.positionSize;
+                    const actualTradingSize = this.config.testMode ? this.config.testPositionSize : this.config.positionSize;
+
+                    const fundingCost = Math.abs(item.fundingRate) * displayPositionSize;
+                    const tradingFees = displayPositionSize * 0.0011 * 2; // 0.11% taker fee both ways
                     const totalCost = fundingCost + tradingFees;
 
                     console.log(`   💸 Funding COST: -$${fundingCost.toFixed(2)} (we PAY this)`);
                     console.log(`   💸 Trading Fees: -$${tradingFees.toFixed(2)} (entry + exit)`);
                     console.log(`   💸 Total Cost: -$${totalCost.toFixed(2)}`);
-                    console.log(`   🎯 Need price drop > ${((totalCost / actualPositionSize) * 100).toFixed(3)}% to profit`);
+                    console.log(`   🎯 Need price drop > ${((totalCost / displayPositionSize) * 100).toFixed(3)}% to profit`);
+
+                    if (this.config.testMode) {
+                        console.log(`   ⚠️ Actual trade size: $${actualTradingSize} (test mode)`);
+                    }
                 }
                 console.log("");
             });
@@ -196,14 +216,14 @@ export class FundingRateTrader {
             // Show trading criteria
             const actualPositionSize = this.config.testMode ? this.config.testPositionSize : this.config.positionSize;
             console.log("🎯 TRADING CRITERIA:");
-            console.log(`   Funding Rate Threshold: ${(this.config.fundingRateThreshold * 100).toFixed(2)}%`);
+            console.log(
+                `   Funding Rate Range: ${(this.config.fundingRateThreshold * 100).toFixed(
+                    2,
+                )}% to -1.00% (negative rates only)`,
+            );
             console.log(`   Position Size: $${actualPositionSize}${this.config.testMode ? " (test mode)" : ""}`);
             console.log(`   Max Positions: ${this.config.maxPositions}`);
-            console.log(
-                `   Trading Window: XX:${this.config.monitoringStart
-                    .toString()
-                    .padStart(2, "0")} - XX:${this.config.orderPlacementTime.toString().padStart(2, "0")}`,
-            );
+            console.log(`   Trading Window: During the minute before settlement (XX:59)`);
             console.log("=".repeat(60) + "\n");
         } catch (error) {
             console.error("❌ Error displaying top funding rates:", error);
@@ -217,14 +237,26 @@ export class FundingRateTrader {
         try {
             // Get current time and check if we're in trading window
             const now = new Date();
-            const currentSecond = now.getSeconds();
+            const currentMinute = now.getMinutes();
 
-            // Only trade during the specified window (XX:58 - XX:59)
-            if (currentSecond < this.config.monitoringStart || currentSecond > this.config.orderPlacementTime) {
+            // Check if we're within the settlement window
+            const nextSettlementCheck = await this.settlementMonitor.getTopFundingRatesForNextSettlement(1);
+            if (nextSettlementCheck.length === 0) {
                 return;
             }
 
-            console.log(`🔍 Checking trading opportunities at ${now.toISOString()}`);
+            const timeToSettlement = (nextSettlementCheck[0].nextFundingTime - Date.now()) / (1000 * 60);
+
+            // Only trade during the 59th minute before settlement (when timeToSettlement is between 0-1 minutes)
+            if (timeToSettlement > 1 || timeToSettlement < 0) {
+                return; // Only trade during the minute before settlement
+            }
+
+            console.log(
+                `🔍 Checking trading opportunities at ${now.toISOString()} (${timeToSettlement.toFixed(
+                    2,
+                )} minutes to settlement)`,
+            );
 
             // Get top funding rates for next settlement
             const topFundingRates = await this.settlementMonitor.getTopFundingRatesForNextSettlement(10);
@@ -234,11 +266,15 @@ export class FundingRateTrader {
                 return;
             }
 
-            // Filter for negative funding rates (we want to short)
-            const shortCandidates = topFundingRates.filter((item) => item.fundingRate < this.config.fundingRateThreshold);
+            // Filter for negative funding rates between -0.01% and -1% (we want to short)
+            const shortCandidates = topFundingRates.filter(
+                (item) =>
+                    item.fundingRate < this.config.fundingRateThreshold && // Below threshold (negative)
+                    item.fundingRate >= -0.01, // Not more negative than -1%
+            );
 
             if (shortCandidates.length === 0) {
-                console.log("📊 No symbols meet funding rate criteria");
+                console.log("📊 No symbols meet funding rate criteria (must be between -0.01% and -1%)");
                 return;
             }
 
@@ -276,17 +312,22 @@ export class FundingRateTrader {
                 // Calculate recommended position size
                 const recommendedSize = this.liquidityAnalyzer.getRecommendedPositionSize(liquidityAnalysis, positionSize);
 
-                // Calculate expected profit (corrected logic)
+                // Calculate trading costs
                 const tradingCosts = this.liquidityAnalyzer.calculateTotalTradingCosts(liquidityAnalysis, recommendedSize);
+
+                // For negative funding rates, we PAY funding (cost for us)
                 const fundingCost = Math.abs(candidate.fundingRate) * recommendedSize; // We PAY this
-                const targetProfit = this.config.targetProfitPercent * recommendedSize; // Expected price drop profit
-                const expectedProfit = targetProfit - fundingCost - tradingCosts.totalCost; // Profit = Price drop - Funding paid - Fees
+                const totalCosts = fundingCost + tradingCosts.totalCost; // Total cost to enter this trade
 
-                // Calculate risk-reward ratio
+                // We don't predict price movements - we just need to cover our costs
+                // The "expected profit" is really just showing what we need to break even
+                const breakEvenPriceMove = (totalCosts / recommendedSize) * 100; // Percentage price drop needed to break even
+
+                // Calculate risk metrics based on actual costs, not predicted profits
                 const maxLoss = recommendedSize * this.config.stopLossPercent;
-                const riskReward = expectedProfit / maxLoss;
+                const costToRewardRatio = totalCosts / maxLoss; // How much we pay vs max risk
 
-                // Determine if we should trade
+                // Determine if we should trade based on realistic criteria
                 let shouldTrade = true;
                 let reason = "";
 
@@ -296,12 +337,14 @@ export class FundingRateTrader {
                 } else if (recommendedSize < positionSize * 0.5) {
                     shouldTrade = false;
                     reason = "Position size too small due to liquidity constraints";
-                } else if (expectedProfit <= 0) {
+                } else if (breakEvenPriceMove > 2.0) {
+                    // If we need more than 2% price drop to break even, it's too risky
                     shouldTrade = false;
-                    reason = "Expected profit is negative";
-                } else if (riskReward < 1.5) {
+                    reason = "Break-even price move too high";
+                } else if (costToRewardRatio > 0.5) {
+                    // If our costs are more than 50% of our max loss, it's not worth it
                     shouldTrade = false;
-                    reason = "Risk-reward ratio too low";
+                    reason = "Cost-to-risk ratio too high";
                 }
 
                 const signal: TradingSignal = {
@@ -310,8 +353,8 @@ export class FundingRateTrader {
                     nextFundingTime: candidate.nextFundingTime,
                     liquidityAnalysis,
                     recommendedPositionSize: recommendedSize,
-                    expectedProfit,
-                    riskReward,
+                    expectedProfit: -totalCosts, // Negative because it's our cost
+                    riskReward: costToRewardRatio,
                     shouldTrade,
                     reason,
                 };
@@ -321,15 +364,16 @@ export class FundingRateTrader {
                 console.log(`📊 Signal for ${candidate.symbol}:`);
                 console.log(`   Should trade: ${shouldTrade ? "✅" : "❌"} ${reason ? `(${reason})` : ""}`);
                 console.log(`   Position size: $${recommendedSize.toFixed(0)}`);
-                console.log(`   Expected profit: $${expectedProfit.toFixed(2)}`);
-                console.log(`   Risk-reward: ${riskReward.toFixed(2)}`);
+                console.log(`   Total costs: $${totalCosts.toFixed(2)}`);
+                console.log(`   Break-even price drop: ${breakEvenPriceMove.toFixed(3)}%`);
+                console.log(`   Cost-to-risk ratio: ${costToRewardRatio.toFixed(2)}`);
             } catch (error) {
                 console.error(`❌ Error generating signal for ${candidate.symbol}:`, error);
             }
         }
 
-        // Sort by expected profit (best first)
-        signals.sort((a, b) => b.expectedProfit - a.expectedProfit);
+        // Sort by lowest costs (best opportunities first) - since expectedProfit is negative (costs)
+        signals.sort((a, b) => a.expectedProfit - b.expectedProfit);
 
         const tradeableSignals = signals.filter((s) => s.shouldTrade);
         console.log(`✅ Generated ${signals.length} signals, ${tradeableSignals.length} tradeable`);
