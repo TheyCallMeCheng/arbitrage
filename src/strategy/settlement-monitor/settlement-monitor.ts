@@ -17,7 +17,7 @@ export class SettlementMonitor {
     constructor(config?: Partial<SettlementMonitorConfig>) {
         this.config = {
             preMonitoringMinutes: 10,
-            postMonitoringMinutes: 5,
+            postMonitoringMinutes: 10,
             snapshotIntervalSeconds: 10,
             fundingRateUpdateIntervalSeconds: 30,
             top3SelectionMinutes: 5,
@@ -312,6 +312,7 @@ export class SettlementMonitor {
 
         const analyses: SettlementAnalysis[] = [];
         const snapshots = this.currentSession.priceSnapshots;
+        const settlementTime = this.currentSession.settlementTime;
 
         for (const symbol of this.currentSession.selectedSymbols) {
             const symbolSnapshots = snapshots.filter((s) => s.symbol === symbol);
@@ -325,9 +326,13 @@ export class SettlementMonitor {
 
             if (preSnapshots.length === 0) continue;
 
-            // Use the FIRST pre-settlement snapshot as baseline (closest to the candle before settlement)
-            // This represents the price before bots start reacting to the upcoming settlement
-            const baselineSnapshot = preSnapshots[0];
+            // Find the baseline snapshot: the one closest to settlement time but still before it
+            // This should be from the last minute before settlement (e.g., 11:59 if settlement is at 12:00)
+            const baselineSnapshot = preSnapshots.reduce((closest, current) => {
+                const closestDistance = Math.abs(closest.timestamp - settlementTime);
+                const currentDistance = Math.abs(current.timestamp - settlementTime);
+                return currentDistance < closestDistance ? current : closest;
+            });
 
             // For final comparison, use the last post snapshot if available, otherwise last settlement snapshot
             const finalSnapshot =
@@ -337,7 +342,7 @@ export class SettlementMonitor {
                     ? settlementSnapshots[settlementSnapshots.length - 1]
                     : preSnapshots[preSnapshots.length - 1];
 
-            // Calculate changes from the earliest baseline
+            // Calculate changes from the baseline (closest to settlement time)
             const changes = this.priceCollector.calculatePriceChange(baselineSnapshot, finalSnapshot);
 
             // Find maximum price movement across ALL snapshots (settlement + post)
