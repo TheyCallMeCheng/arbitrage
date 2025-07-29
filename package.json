@@ -14,7 +14,20 @@
         "arbitrage": "ts-node src/strategy/funding-rate-arbitrage.ts",
         "arbitrage-monitor": "ts-node src/strategy/monitor.ts",
         "settlement-monitor": "ts-node src/examples/settlement-monitor-example.ts",
-        "funding-trader": "ts-node src/strategy/funding-rate-trader/trader-test.ts"
+        "funding-trader": "ts-node src/strategy/funding-rate-trader/trader-test.ts",
+        "pm2:start": "pm2 start ecosystem.config.js",
+        "pm2:stop": "pm2 stop ecosystem.config.js",
+        "pm2:restart": "pm2 restart ecosystem.config.js",
+        "pm2:reload": "pm2 reload ecosystem.config.js",
+        "pm2:delete": "pm2 delete ecosystem.config.js",
+        "pm2:status": "pm2 status",
+        "pm2:logs": "pm2 logs",
+        "pm2:logs:trader": "pm2 logs funding-rate-trader",
+        "pm2:logs:monitor": "pm2 logs settlement-monitor",
+        "pm2:monit": "pm2 monit",
+        "pm2:flush": "pm2 flush",
+        "pm2:save": "pm2 save",
+        "pm2:startup": "pm2 startup"
     },
     "keywords": [
         "arbitrage",
@@ -34,6 +47,7 @@
     "devDependencies": {
         "@types/better-sqlite3": "^7.6.13",
         "@types/node": "^20.8.0",
+        "pm2": "^6.0.8",
         "rimraf": "^5.0.5",
         "ts-node": "^10.9.1",
         "typescript": "^5.2.2"

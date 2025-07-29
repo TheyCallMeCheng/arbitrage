@@ -2,6 +2,7 @@ import { SettlementMonitor } from "../settlement-monitor/settlement-monitor";
 import { BybitTradingClient } from "./bybit-trading-client";
 import { PositionManager } from "./position-manager";
 import { LiquidityAnalyzer } from "./liquidity-analyzer";
+import { CrashRecoveryManager } from "./crash-recovery";
 import { TradingConfig, TradingSignal, Position } from "./types";
 
 export class FundingRateTrader {
@@ -10,6 +11,7 @@ export class FundingRateTrader {
     private tradingClient: BybitTradingClient;
     private positionManager: PositionManager;
     private liquidityAnalyzer: LiquidityAnalyzer;
+    private crashRecovery: CrashRecoveryManager;
     private isRunning: boolean = false;
     private tradingInterval: NodeJS.Timeout | null = null;
 
@@ -25,6 +27,9 @@ export class FundingRateTrader {
 
         this.positionManager = new PositionManager(this.tradingClient, config);
         this.liquidityAnalyzer = new LiquidityAnalyzer(config);
+
+        // Initialize crash recovery manager
+        this.crashRecovery = new CrashRecoveryManager(this.positionManager, this.tradingClient, config);
 
         // Initialize settlement monitor with custom config
         this.settlementMonitor = new SettlementMonitor({
@@ -47,6 +52,9 @@ export class FundingRateTrader {
             if (!connectionTest.success) {
                 throw new Error(`API connection failed: ${connectionTest.error}`);
             }
+
+            // Perform crash recovery
+            await this.crashRecovery.performCrashRecovery();
 
             // Initialize settlement monitor
             await this.settlementMonitor.initialize();
@@ -118,18 +126,88 @@ export class FundingRateTrader {
      * Start the main trading loop
      */
     private startTradingLoop(): void {
+        // Display top funding rates immediately
+        this.displayTopFundingRates();
+
         // Check for trading opportunities every 30 seconds
         this.tradingInterval = setInterval(async () => {
             if (!this.isRunning) return;
 
             try {
                 await this.checkTradingOpportunities();
+
+                // Display top funding rates every 2 minutes (every 4th cycle)
+                const now = new Date();
+                if (now.getSeconds() % 120 < 30) {
+                    // Show every 2 minutes
+                    await this.displayTopFundingRates();
+                }
             } catch (error) {
                 console.error("❌ Error in trading loop:", error);
             }
         }, 30000); // 30 seconds
 
         console.log("🔄 Trading loop started");
+    }
+
+    /**
+     * Display top 3 upcoming funding rates
+     */
+    private async displayTopFundingRates(): Promise<void> {
+        try {
+            const topFundingRates = await this.settlementMonitor.getTopFundingRatesForNextSettlement(3);
+
+            if (topFundingRates.length === 0) {
+                console.log("📊 No upcoming settlements found");
+                return;
+            }
+
+            const nextSettlement = new Date(topFundingRates[0].nextFundingTime);
+            const timeUntilSettlement = Math.round((topFundingRates[0].nextFundingTime - Date.now()) / (1000 * 60));
+
+            console.log("\n" + "=".repeat(60));
+            console.log("📈 TOP 3 UPCOMING FUNDING RATES");
+            console.log("=".repeat(60));
+            console.log(`⏰ Next Settlement: ${nextSettlement.toLocaleString()} (${timeUntilSettlement} minutes)`);
+            console.log("");
+
+            topFundingRates.forEach((item, index) => {
+                const rate = (item.fundingRate * 100).toFixed(4);
+                const rateColor = item.fundingRate < -0.001 ? "🟢" : item.fundingRate > 0.001 ? "🔴" : "🟡";
+                const tradeable = item.fundingRate < this.config.fundingRateThreshold ? "✅ TRADEABLE" : "❌ Skip";
+
+                console.log(`${index + 1}. ${item.symbol}`);
+                console.log(`   Rate: ${rateColor} ${rate}% | ${tradeable}`);
+
+                if (item.fundingRate < this.config.fundingRateThreshold) {
+                    const actualPositionSize = this.config.testMode ? this.config.testPositionSize : this.config.positionSize;
+                    const fundingCost = Math.abs(item.fundingRate) * actualPositionSize;
+                    const tradingFees = actualPositionSize * 0.0011 * 2; // 0.11% taker fee both ways
+                    const totalCost = fundingCost + tradingFees;
+
+                    console.log(`   💸 Funding COST: -$${fundingCost.toFixed(2)} (we PAY this)`);
+                    console.log(`   💸 Trading Fees: -$${tradingFees.toFixed(2)} (entry + exit)`);
+                    console.log(`   💸 Total Cost: -$${totalCost.toFixed(2)}`);
+                    console.log(`   🎯 Need price drop > ${((totalCost / actualPositionSize) * 100).toFixed(3)}% to profit`);
+                }
+                console.log("");
+            });
+
+            // Show trading criteria
+            const actualPositionSize = this.config.testMode ? this.config.testPositionSize : this.config.positionSize;
+            console.log("🎯 TRADING CRITERIA:");
+            console.log(`   Funding Rate Threshold: ${(this.config.fundingRateThreshold * 100).toFixed(2)}%`);
+            console.log(`   Position Size: $${actualPositionSize}${this.config.testMode ? " (test mode)" : ""}`);
+            console.log(`   Max Positions: ${this.config.maxPositions}`);
+            console.log(
+                `   Trading Window: XX:${this.config.monitoringStart
+                    .toString()
+                    .padStart(2, "0")} - XX:${this.config.orderPlacementTime.toString().padStart(2, "0")}`,
+            );
+            console.log("=".repeat(60) + "\n");
+        } catch (error) {
+            console.error("❌ Error displaying top funding rates:", error);
+        }
     }
 
     /**
@@ -198,11 +276,11 @@ export class FundingRateTrader {
                 // Calculate recommended position size
                 const recommendedSize = this.liquidityAnalyzer.getRecommendedPositionSize(liquidityAnalysis, positionSize);
 
-                // Calculate expected profit
+                // Calculate expected profit (corrected logic)
                 const tradingCosts = this.liquidityAnalyzer.calculateTotalTradingCosts(liquidityAnalysis, recommendedSize);
-                const fundingProfit = Math.abs(candidate.fundingRate) * recommendedSize;
-                const targetProfit = this.config.targetProfitPercent * recommendedSize;
-                const expectedProfit = fundingProfit + targetProfit - tradingCosts.totalCost;
+                const fundingCost = Math.abs(candidate.fundingRate) * recommendedSize; // We PAY this
+                const targetProfit = this.config.targetProfitPercent * recommendedSize; // Expected price drop profit
+                const expectedProfit = targetProfit - fundingCost - tradingCosts.totalCost; // Profit = Price drop - Funding paid - Fees
 
                 // Calculate risk-reward ratio
                 const maxLoss = recommendedSize * this.config.stopLossPercent;
