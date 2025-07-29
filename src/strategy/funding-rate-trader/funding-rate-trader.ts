@@ -434,8 +434,8 @@ export class FundingRateTrader {
                 signal.expectedProfit,
             );
 
-            // Calculate quantity to trade
-            const quantity = (signal.recommendedPositionSize / signal.liquidityAnalysis.optimalOrderPrice).toFixed(6);
+            // Calculate quantity to trade - round to whole number
+            const quantity = Math.round(signal.recommendedPositionSize / signal.liquidityAnalysis.optimalOrderPrice).toString();
 
             // Place limit order at optimal price
             const orderResult = await this.tradingClient.placeOrder({
