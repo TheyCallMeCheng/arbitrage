@@ -14,6 +14,7 @@ app.use(express.static(path.join(__dirname)))
 // Initialize databases
 const db = new Database("../data/bybit_perpetuals.db")
 const settlementDb = new Database("../data/settlement_monitor.db")
+const backtestDb = new Database("../data/backtest.db")
 
 // Helper functions
 function getActivePerpetuals() {
@@ -170,14 +171,14 @@ app.get("/api/settlement/sessions", (req, res) => {
             ORDER BY settlement_time DESC 
             LIMIT 50
         `)
-        const sessions = stmt.all().map(session => ({
+        const sessions = stmt.all().map((session) => ({
             id: session.id,
             settlementTime: session.settlement_time,
             selectedSymbols: JSON.parse(session.selected_symbols),
             selectionTimestamp: session.selection_timestamp,
             fundingRatesAtSelection: JSON.parse(session.funding_rates_at_selection),
             createdAt: session.created_at,
-            snapshotCount: session.snapshot_count
+            snapshotCount: session.snapshot_count,
         }))
 
         res.json({
@@ -204,7 +205,7 @@ app.get("/api/settlement/analysis", (req, res) => {
             ORDER BY sa.created_at DESC 
             LIMIT 100
         `)
-        const analyses = stmt.all().map(analysis => ({
+        const analyses = stmt.all().map((analysis) => ({
             sessionId: analysis.session_id,
             symbol: analysis.symbol,
             fundingRate: analysis.funding_rate,
@@ -215,7 +216,8 @@ app.get("/api/settlement/analysis", (req, res) => {
             timeToMaxMove: analysis.time_to_max_move,
             maxPriceMove: analysis.max_price_move,
             settlementTime: analysis.settlement_time,
-            theoryTest: Math.abs(analysis.price_change_percent) > Math.abs(analysis.funding_rate * 100) ? "PASS" : "FAIL"
+            theoryTest:
+                Math.abs(analysis.price_change_percent) > Math.abs(analysis.funding_rate * 100) ? "PASS" : "FAIL",
         }))
 
         res.json({
@@ -278,7 +280,7 @@ app.get("/api/settlement/sessions/:sessionId", (req, res) => {
             selectionTimestamp: session.selection_timestamp,
             fundingRatesAtSelection: JSON.parse(session.funding_rates_at_selection),
             createdAt: session.created_at,
-            snapshotCount: snapshotCount.count
+            snapshotCount: snapshotCount.count,
         }
 
         res.json(sessionData)
@@ -305,20 +307,22 @@ app.get("/api/settlement/chart/:sessionId/:symbol", (req, res) => {
         const chartData = {
             symbol,
             sessionId,
-            snapshots: snapshots.map(snap => ({
+            snapshots: snapshots.map((snap) => ({
                 timestamp: snap.timestamp,
                 type: snap.snapshot_type,
                 bidPrice: snap.bid_price,
                 askPrice: snap.ask_price,
                 markPrice: snap.mark_price,
-                ohlc: snap.ohlc_open ? {
-                    open: snap.ohlc_open,
-                    high: snap.ohlc_high,
-                    low: snap.ohlc_low,
-                    close: snap.ohlc_close,
-                    volume: snap.ohlc_volume
-                } : null
-            }))
+                ohlc: snap.ohlc_open
+                    ? {
+                          open: snap.ohlc_open,
+                          high: snap.ohlc_high,
+                          low: snap.ohlc_low,
+                          close: snap.ohlc_close,
+                          volume: snap.ohlc_volume,
+                      }
+                    : null,
+            })),
         }
 
         res.json(chartData)
@@ -357,19 +361,19 @@ app.get("/api/settlement/analysis/:sessionId/:symbol", (req, res) => {
         // Mock orderbook data (in real implementation, this would come from stored orderbook snapshots)
         const mockOrderbook = {
             before: {
-                bestBid: analysis.bid_price_before || 45250.50,
-                bestAsk: analysis.ask_price_before || 45251.00,
+                bestBid: analysis.bid_price_before || 45250.5,
+                bestAsk: analysis.ask_price_before || 45251.0,
                 spread: analysis.spread_before || 0.0001,
                 bidDepth: analysis.bid_depth_before || 15.5,
-                askDepth: analysis.ask_depth_before || 12.3
+                askDepth: analysis.ask_depth_before || 12.3,
             },
             after: {
                 bestBid: analysis.bid_price_after || 45225.25,
                 bestAsk: analysis.ask_price_after || 45226.75,
                 spread: analysis.spread_after || 0.0003,
                 bidDepth: analysis.bid_depth_after || 8.2,
-                askDepth: analysis.ask_depth_after || 6.7
-            }
+                askDepth: analysis.ask_depth_after || 6.7,
+            },
         }
 
         const detailedAnalysis = {
@@ -383,28 +387,241 @@ app.get("/api/settlement/analysis/:sessionId/:symbol", (req, res) => {
                 volumeChangePercent: analysis.volume_change_percent,
                 spreadChangePercent: analysis.spread_change_percent,
                 liquidityChangePercent: analysis.liquidity_change_percent,
-                theoryTest: Math.abs(analysis.price_change_percent) > Math.abs(analysis.funding_rate * 100) ? "PASS" : "FAIL"
+                theoryTest:
+                    Math.abs(analysis.price_change_percent) > Math.abs(analysis.funding_rate * 100) ? "PASS" : "FAIL",
             },
-            snapshots: snapshots.map(snap => ({
+            snapshots: snapshots.map((snap) => ({
                 timestamp: snap.timestamp,
                 type: snap.snapshot_type,
                 bidPrice: snap.bid_price,
                 askPrice: snap.ask_price,
                 markPrice: snap.mark_price,
-                ohlc: snap.ohlc_open ? {
-                    open: snap.ohlc_open,
-                    high: snap.ohlc_high,
-                    low: snap.ohlc_low,
-                    close: snap.ohlc_close,
-                    volume: snap.ohlc_volume
-                } : null
+                ohlc: snap.ohlc_open
+                    ? {
+                          open: snap.ohlc_open,
+                          high: snap.ohlc_high,
+                          low: snap.ohlc_low,
+                          close: snap.ohlc_close,
+                          volume: snap.ohlc_volume,
+                      }
+                    : null,
             })),
-            orderbook: mockOrderbook
+            orderbook: mockOrderbook,
         }
 
         res.json(detailedAnalysis)
     } catch (error) {
         console.error("Error fetching detailed analysis:", error)
+        res.status(500).json({ error: "Internal server error" })
+    }
+})
+
+// Backtest API Routes
+
+// Get backtest results
+app.get("/api/backtest/results", (req, res) => {
+    try {
+        const stmt = backtestDb.prepare(`
+            SELECT * FROM backtest_results 
+            ORDER BY created_at DESC 
+            LIMIT 50
+        `)
+        const results = stmt.all()
+
+        res.json({
+            results: results.map((result) => ({
+                id: result.id,
+                backtestName: result.backtest_name,
+                symbol: result.symbol,
+                startDate: result.start_date,
+                endDate: result.end_date,
+                minFundingRate: result.min_funding_rate,
+                holdDurationMinutes: result.hold_duration_minutes,
+                totalTrades: result.total_trades,
+                winningTrades: result.winning_trades,
+                losingTrades: result.losing_trades,
+                winRate: result.win_rate,
+                totalPnl: result.total_pnl,
+                averagePnlPerTrade: result.average_pnl_per_trade,
+                maxProfit: result.max_profit,
+                maxLoss: result.max_loss,
+                sharpeRatio: result.sharpe_ratio,
+                createdAt: result.created_at,
+            })),
+            total: results.length,
+            timestamp: new Date().toISOString(),
+        })
+    } catch (error) {
+        console.error("Error fetching backtest results:", error)
+        res.status(500).json({ error: "Internal server error" })
+    }
+})
+
+// Get backtest trades for a specific result
+app.get("/api/backtest/trades/:backtestId", (req, res) => {
+    try {
+        const { backtestId } = req.params
+        const stmt = backtestDb.prepare(`
+            SELECT * FROM backtest_trades 
+            WHERE backtest_result_id = ?
+            ORDER BY settlement_time ASC
+        `)
+        const trades = stmt.all(backtestId)
+
+        res.json({
+            trades: trades.map((trade) => ({
+                id: trade.id,
+                backtestResultId: trade.backtest_result_id,
+                symbol: trade.symbol,
+                settlementTime: trade.settlement_time,
+                fundingRate: trade.funding_rate,
+                entryPrice: trade.entry_price,
+                exitPrice: trade.exit_price,
+                entryTime: trade.entry_time,
+                exitTime: trade.exit_time,
+                pnlPercentage: trade.pnl_percentage,
+                pnlAbsolute: trade.pnl_absolute,
+                holdDurationMinutes: trade.hold_duration_minutes,
+                maxFavorableMove: trade.max_favorable_move,
+                maxAdverseMove: trade.max_adverse_move,
+                createdAt: trade.created_at,
+            })),
+            total: trades.length,
+            timestamp: new Date().toISOString(),
+        })
+    } catch (error) {
+        console.error("Error fetching backtest trades:", error)
+        res.status(500).json({ error: "Internal server error" })
+    }
+})
+
+// Get backtest statistics
+app.get("/api/backtest/stats", (req, res) => {
+    try {
+        const resultsStmt = backtestDb.prepare("SELECT COUNT(*) as count FROM backtest_results")
+        const tradesStmt = backtestDb.prepare("SELECT COUNT(*) as count FROM backtest_trades")
+        const fundingStmt = backtestDb.prepare("SELECT COUNT(*) as count FROM funding_rate_history")
+        const settlementStmt = backtestDb.prepare("SELECT COUNT(*) as count FROM settlement_price_data")
+
+        const results = resultsStmt.get()
+        const trades = tradesStmt.get()
+        const funding = fundingStmt.get()
+        const settlement = settlementStmt.get()
+
+        res.json({
+            totalBacktests: results.count,
+            totalTrades: trades.count,
+            totalFundingRecords: funding.count,
+            totalSettlementRecords: settlement.count,
+            timestamp: new Date().toISOString(),
+        })
+    } catch (error) {
+        console.error("Error fetching backtest stats:", error)
+        res.status(500).json({ error: "Internal server error" })
+    }
+})
+
+// Get funding rate history
+app.get("/api/backtest/funding-history", (req, res) => {
+    try {
+        const { symbol, limit = 100 } = req.query
+
+        let stmt
+        let params = []
+
+        if (symbol) {
+            stmt = backtestDb.prepare(`
+                SELECT * FROM funding_rate_history 
+                WHERE symbol = ?
+                ORDER BY funding_rate_timestamp DESC 
+                LIMIT ?
+            `)
+            params = [symbol, parseInt(limit)]
+        } else {
+            stmt = backtestDb.prepare(`
+                SELECT * FROM funding_rate_history 
+                ORDER BY funding_rate_timestamp DESC 
+                LIMIT ?
+            `)
+            params = [parseInt(limit)]
+        }
+
+        const history = stmt.all(...params)
+
+        res.json({
+            history: history.map((record) => ({
+                symbol: record.symbol,
+                fundingRate: record.funding_rate,
+                fundingRateTimestamp: record.funding_rate_timestamp,
+                nextFundingTime: record.next_funding_time,
+                createdAt: record.created_at,
+            })),
+            total: history.length,
+            timestamp: new Date().toISOString(),
+        })
+    } catch (error) {
+        console.error("Error fetching funding history:", error)
+        res.status(500).json({ error: "Internal server error" })
+    }
+})
+
+// Get settlement price data
+app.get("/api/backtest/settlement-data", (req, res) => {
+    try {
+        const { symbol, limit = 100 } = req.query
+
+        let stmt
+        let params = []
+
+        if (symbol) {
+            stmt = backtestDb.prepare(`
+                SELECT * FROM settlement_price_data 
+                WHERE symbol = ?
+                ORDER BY settlement_time DESC 
+                LIMIT ?
+            `)
+            params = [symbol, parseInt(limit)]
+        } else {
+            stmt = backtestDb.prepare(`
+                SELECT * FROM settlement_price_data 
+                ORDER BY settlement_time DESC 
+                LIMIT ?
+            `)
+            params = [parseInt(limit)]
+        }
+
+        const data = stmt.all(...params)
+
+        res.json({
+            data: data.map((record) => ({
+                symbol: record.symbol,
+                settlementTime: record.settlement_time,
+                fundingRate: record.funding_rate,
+                priceBeforeSettlement: record.price_before_settlement,
+                timestampBeforeSettlement: record.timestamp_before_settlement,
+                priceAtSettlement: record.price_at_settlement,
+                timestampAtSettlement: record.timestamp_at_settlement,
+                price1MinAfter: record.price_1min_after,
+                price5MinAfter: record.price_5min_after,
+                price10MinAfter: record.price_10min_after,
+                price15MinAfter: record.price_15min_after,
+                price30MinAfter: record.price_30min_after,
+                priceChange1Min: record.price_change_1min,
+                priceChange5Min: record.price_change_5min,
+                priceChange10Min: record.price_change_10min,
+                priceChange15Min: record.price_change_15min,
+                priceChange30Min: record.price_change_30min,
+                meetsFundingCriteria: Boolean(record.meets_funding_criteria),
+                priceDropped2xFunding: Boolean(record.price_dropped_2x_funding),
+                maxProfit10Min: record.max_profit_10min,
+                timeToMaxProfit: record.time_to_max_profit,
+                createdAt: record.created_at,
+            })),
+            total: data.length,
+            timestamp: new Date().toISOString(),
+        })
+    } catch (error) {
+        console.error("Error fetching settlement data:", error)
         res.status(500).json({ error: "Internal server error" })
     }
 })
@@ -416,6 +633,7 @@ app.get("/api/health", (req, res) => {
         timestamp: new Date().toISOString(),
         database: "connected",
         settlementDatabase: "connected",
+        backtestDatabase: "connected",
     })
 })
 

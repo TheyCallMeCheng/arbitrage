@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Funding Rate Arbitrage - Backtest Results</title>
+    <link rel="stylesheet" href="backtest-results.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1>🎯 Funding Rate Arbitrage Backtest Results</h1>
+                <p class="subtitle">Comprehensive analysis of -0.1% funding rate threshold strategy</p>
+                <div class="nav-links">
+                    <a href="index.html">🏠 Home</a>
+                    <a href="settlement-monitor.html">📊 Settlement Monitor</a>
+                    <a href="trading-dashboard.html">💹 Trading Dashboard</a>
+                </div>
+            </div>
+        </header>
+
+        <!-- Loading State -->
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading backtest results...</p>
+        </div>
+
+        <!-- Main Content -->
+        <div id="main-content" class="main-content" style="display: none;">
+
+            <!-- Statistics Overview -->
+            <section class="stats-overview">
+                <h2>📈 Overview Statistics</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">🧪</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="total-backtests">-</div>
+                            <div class="stat-label">Total Backtests</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💰</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="total-trades">-</div>
+                            <div class="stat-label">Total Trades</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="funding-records">-</div>
+                            <div class="stat-label">Funding Records</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⏰</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="settlement-records">-</div>
+                            <div class="stat-label">Settlement Records</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Strategy Performance Comparison -->
+            <section class="strategy-comparison">
+                <h2>🏆 Strategy Performance Comparison</h2>
+                <div class="comparison-controls">
+                    <select id="sort-strategy" class="control-select">
+                        <option value="totalPnl">Sort by Total P&L</option>
+                        <option value="winRate">Sort by Win Rate</option>
+                        <option value="sharpeRatio">Sort by Sharpe Ratio</option>
+                        <option value="totalTrades">Sort by Total Trades</option>
+                    </select>
+                    <button id="refresh-data" class="btn btn-primary">🔄 Refresh Data</button>
+                </div>
+                <div class="strategy-table-container">
+                    <table id="strategy-table" class="strategy-table">
+                        <thead>
+                            <tr>
+                                <th>Strategy Name</th>
+                                <th>Symbols</th>
+                                <th>Hold Duration</th>
+                                <th>Total Trades</th>
+                                <th>Win Rate</th>
+                                <th>Total P&L %</th>
+                                <th>Avg P&L %</th>
+                                <th>Max Profit %</th>
+                                <th>Max Loss %</th>
+                                <th>Sharpe Ratio</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="strategy-table-body">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Performance Charts -->
+            <section class="performance-charts">
+                <h2>📊 Performance Analysis</h2>
+                <div class="charts-grid">
+                    <div class="chart-container">
+                        <h3>Strategy P&L Comparison</h3>
+                        <canvas id="pnl-chart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>Win Rate vs Total Trades</h3>
+                        <canvas id="winrate-chart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>Risk-Adjusted Returns (Sharpe Ratio)</h3>
+                        <canvas id="sharpe-chart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>Trade Distribution by Hold Duration</h3>
+                        <canvas id="duration-chart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Detailed Trade Analysis -->
+            <section class="trade-analysis">
+                <h2>🔍 Detailed Trade Analysis</h2>
+                <div class="analysis-controls">
+                    <select id="selected-backtest" class="control-select">
+                        <option value="">Select a backtest to analyze...</option>
+                    </select>
+                    <div class="filter-controls">
+                        <input type="text" id="symbol-filter" placeholder="Filter by symbol..." class="control-input">
+                        <select id="outcome-filter" class="control-select">
+                            <option value="">All Trades</option>
+                            <option value="winning">Winning Trades</option>
+                            <option value="losing">Losing Trades</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="trade-details" class="trade-details" style="display: none;">
+                    <div class="trade-summary">
+                        <h3>Trade Summary</h3>
+                        <div class="summary-stats" id="trade-summary-stats">
+                            <!-- Dynamic content -->
+                        </div>
+                    </div>
+                    <div class="trade-table-container">
+                        <table id="trade-table" class="trade-table">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Settlement Time</th>
+                                    <th>Funding Rate %</th>
+                                    <th>Entry Price</th>
+                                    <th>Exit Price</th>
+                                    <th>Hold Duration</th>
+                                    <th>P&L %</th>
+                                    <th>P&L Absolute</th>
+                                    <th>Max Favorable %</th>
+                                    <th>Max Adverse %</th>
+                                    <th>2x Funding Test</th>
+                                </tr>
+                            </thead>
+                            <tbody id="trade-table-body">
+                                <!-- Dynamic content -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Symbol Performance Analysis -->
+            <section class="symbol-analysis">
+                <h2>🎯 Symbol Performance Analysis</h2>
+                <div class="symbol-controls">
+                    <select id="symbol-metric" class="control-select">
+                        <option value="totalPnl">Total P&L</option>
+                        <option value="winRate">Win Rate</option>
+                        <option value="tradeCount">Trade Count</option>
+                        <option value="avgPnl">Average P&L</option>
+                    </select>
+                    <input type="number" id="top-symbols" value="20" min="5" max="50" class="control-input"
+                        placeholder="Top N symbols">
+                </div>
+                <div class="symbol-chart-container">
+                    <canvas id="symbol-performance-chart"></canvas>
+                </div>
+            </section>
+
+            <!-- Funding Rate Distribution -->
+            <section class="funding-distribution">
+                <h2>📈 Funding Rate Distribution Analysis</h2>
+                <div class="distribution-grid">
+                    <div class="distribution-chart">
+                        <h3>Funding Rate Histogram</h3>
+                        <canvas id="funding-histogram"></canvas>
+                    </div>
+                    <div class="distribution-stats">
+                        <h3>Distribution Statistics</h3>
+                        <div id="funding-stats" class="funding-stats">
+                            <!-- Dynamic content -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Strategy Recommendations -->
+            <section class="recommendations">
+                <h2>💡 Strategy Recommendations</h2>
+                <div id="recommendations-content" class="recommendations-content">
+                    <!-- Dynamic content -->
+                </div>
+            </section>
+
+        </div>
+
+        <!-- Trade Detail Modal -->
+        <div id="trade-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Trade Details</h3>
+                    <span class="close">&times;</span>
+                </div>
+                <div class="modal-body" id="trade-modal-body">
+                    <!-- Dynamic content -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>&copy; 2025 Funding Rate Arbitrage System. Real-time backtest analysis for optimal trading strategies.
+            </p>
+            <p>Last updated: <span id="last-updated">-</span></p>
+        </footer>
+    </div>
+
+    <script src="backtest-results.js"></script>
+</body>
+
+</html>
